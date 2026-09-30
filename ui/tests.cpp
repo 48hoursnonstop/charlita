@@ -24,7 +24,13 @@ class UiTests final : public QObject {
     QQuickWindow *window = nullptr;
     QString groupId;
     QVariantMap document() const { return backend->state()["document"].toMap(); }
-    QQuickItem *item(const char *name) const { return window->findChild<QQuickItem *>(name); }
+    static QQuickItem *findVisualItem(QQuickItem *root, const QString &name) {
+        if(root->objectName()==name)return root;
+        for(auto *child:root->childItems())
+            if(auto *found=findVisualItem(child,name))return found;
+        return nullptr;
+    }
+    QQuickItem *item(const char *name) const { return findVisualItem(window->contentItem(),QString::fromUtf8(name)); }
     QJSValue evaluate(const QString &script) { return qml->evaluate(script); }
     void capture(const QString &name, int waitMs=80) {
         const auto directory=qEnvironmentVariable("CHARLITA_UI_CAPTURE_DIR");
@@ -37,13 +43,15 @@ class UiTests final : public QObject {
         const auto point = item->mapToScene(QPointF(item->width()/2,item->height()/2)).toPoint();
         QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, point);
     }
-    QVariantMap publishedGuest() {
+    QVariantMap publishedOutput() {
         QNetworkAccessManager manager;
         auto *reply=manager.get(QNetworkRequest(QUrl(backend->state()["baseUrl"].toString()+"/state/group/"+groupId)));
         QSignalSpy done(reply,&QNetworkReply::finished);
         if (!reply->isFinished() && !done.wait(3000)) return {};
-        const auto json=QJsonDocument::fromJson(reply->readAll()).object().toVariantMap();
-        const auto guests=json["guests"].toList();return guests.isEmpty()?QVariantMap{}:guests.first().toMap();
+        return QJsonDocument::fromJson(reply->readAll()).object().toVariantMap();
+    }
+    QVariantMap publishedGuest() {
+        const auto guests=publishedOutput()["guests"].toList();return guests.isEmpty()?QVariantMap{}:guests.first().toMap();
     }
 private slots:
     void initTestCase() { QApplication::setQuitOnLastWindowClosed(false);QQuickStyle::setStyle("Basic"); }
@@ -93,6 +101,20 @@ private slots:
         auto *drawer=window->findChild<QObject *>("characterEditor");QVERIFY(drawer);QTRY_VERIFY(drawer->property("position").toReal()>0.99);
         QCOMPARE(drawer->property("asset").toMap()["width"].toInt(),32);
         capture("character-editor");
+        window->resize(320,640);QTest::qWait(80);capture("character-narrow");
+        for (int i=0;i<4;++i) {
+            auto *crop=item(qPrintable(QString("cropControl%1").arg(i)));QVERIFY(crop);
+            const auto rect=crop->mapRectToScene(QRectF(0,0,crop->width(),crop->height()));
+            QVERIFY2(rect.left()>=0&&rect.right()<=window->width(),"Crop control exceeds the narrow window");
+        }
+        for (int i=0;i<35;++i) {
+            QTest::keyClick(window,Qt::Key_Tab);QCoreApplication::processEvents();
+            auto *focus=window->activeFocusItem();QVERIFY(focus);
+            const auto rect=focus->mapRectToScene(QRectF(0,0,focus->width(),focus->height()));
+            QVERIFY2(rect.left()>=0&&rect.right()<=window->width()&&rect.top()>=0&&rect.bottom()<=window->height(),qPrintable(QString("Focused item outside window: %1 x=%2 right=%3 y=%4 bottom=%5").arg(focus->objectName()).arg(rect.left()).arg(rect.right()).arg(rect.top()).arg(rect.bottom())));
+        }
+        capture("character-keyboard-narrow");
+        window->resize(1220,820);
         QTest::keyClick(window,Qt::Key_Escape);QTRY_VERIFY(!drawer->property("visible").toBool());
         window->setProperty("page",0);
         QVERIFY(backend->request("add_guest",{{"group",groupId},{"user","123456789012345678"},{"name","Ariadna"}})["ok"].toBool());
@@ -108,6 +130,7 @@ private slots:
     void smallWindowKeepsPrimaryActionAndKeyboardFocusReachable() {
         window->resize(320,640);QTest::qWait(100);
         auto *apply=item("applyChanges");QVERIFY(apply);
+        apply->forceActiveFocus(Qt::TabFocusReason);capture("apply-focus");
         const auto rect=apply->mapRectToScene(QRectF(0,0,apply->width(),apply->height()));
         QVERIFY2(rect.left()>=0&&rect.right()<=window->width(),qPrintable(QString("Apply control outside window: %1,%2").arg(rect.left()).arg(rect.right())));
         auto *status=item("applyStatus");QVERIFY(status);
@@ -131,16 +154,16 @@ private slots:
         auto *notice=item("noticeBanner");QVERIFY(notice);QTRY_VERIFY(notice->isVisible());
         QVERIFY(!backend->state()["error"].toString().isEmpty());
         QVERIFY(notice->z()>drawer->property("z").toReal());
-        capture("import-error");backend->dismiss();QTRY_VERIFY(!notice->isVisible());
+        capture("import-error");QTest::keyClick(window,Qt::Key_Escape);QTRY_VERIFY(!notice->isVisible());
+        QVERIFY(drawer->property("visible").toBool());
     }
     void importedWebMPreviewRetainsAlphaAndRespectsReducedMotion() {
-        auto ffmpeg = QDir(QFileInfo(QStringLiteral(__FILE__)).absolutePath()).filePath("../tools/ffmpeg" + QStringLiteral(
 #ifdef Q_OS_WIN
-            ".exe"
+        const auto filename=QStringLiteral("../tools/ffmpeg.exe");
 #else
-            ""
+        const auto filename=QStringLiteral("../tools/ffmpeg");
 #endif
-        ));
+        auto ffmpeg = QDir(QFileInfo(QStringLiteral(__FILE__)).absolutePath()).filePath(filename);
         if (!QFileInfo::exists(ffmpeg)) ffmpeg=QStandardPaths::findExecutable("ffmpeg");
         if (ffmpeg.isEmpty()) QSKIP("FFmpeg is unavailable for the WebM fixture");
         const auto png=folder->filePath("alpha.png");
@@ -172,6 +195,24 @@ private slots:
         QTRY_VERIFY(!animation->property("playing").toBool());
         capture("webm-alpha");
 
+    }
+    void canvasFitsContentByDefaultAndFixedSizeRemainsOptional() {
+        QVERIFY(document()["profiles"].toList().first().toMap()["groups"].toList().first().toMap()["auto_size"].toBool());
+        QCOMPARE(publishedOutput()["width"].toInt(),64);
+        for(const auto &id: {QString("123456789012345678"),QString("123456789012345679")})
+            QVERIFY(backend->request("add_guest",{{"group",groupId},{"user",id},{"name","Guest"}})["ok"].toBool());
+        QCOMPARE(backend->state()["outputs"].toMap()[groupId].toMap()["width"].toInt(),544);
+        QCOMPARE(publishedOutput()["width"].toInt(),64);
+        click(item("applyChanges"));QTRY_COMPARE(publishedOutput()["width"].toInt(),544);
+        click(item("editComposition"));
+        auto *automatic=item("autoCanvas");QVERIFY(automatic);QTRY_VERIFY(automatic->isVisible());QTest::qWait(100);
+        click(automatic);
+        QTRY_VERIFY(!document()["profiles"].toList().first().toMap()["groups"].toList().first().toMap()["auto_size"].toBool());
+        QCOMPARE(document()["profiles"].toList().first().toMap()["groups"].toList().first().toMap()["width"].toInt(),544);
+        click(automatic);
+        QTRY_VERIFY(document()["profiles"].toList().first().toMap()["groups"].toList().first().toMap()["auto_size"].toBool());
+        capture("automatic-canvas");
+        window->resize(320,640);capture("automatic-canvas-narrow");
     }
 };
 QTEST_MAIN(UiTests)

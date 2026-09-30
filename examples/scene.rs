@@ -16,6 +16,7 @@ fn main() -> anyhow::Result<()> {
     doc.settings.language = "es".into();
     doc.profiles[0].name = "Escena de prueba".into();
     doc.profiles[0].groups[0].height = 720;
+    doc.profiles[0].groups[0].auto_size = false;
     doc.profiles[0].groups[0].layout = charlita::model::Layout::Grid;
     doc.profiles[0].groups[0].columns = 4;
     for i in 0..count {

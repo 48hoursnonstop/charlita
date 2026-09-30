@@ -293,6 +293,7 @@ mod tests {
             "Invitada"
         );
         doc.people.get_mut("1").unwrap().name = "Cambio sin aplicar".into();
+        doc.profiles[0].groups[0].members[0].size = 300.0;
         store.save("draft", &doc).unwrap();
         let state: serde_json::Value = http
             .get(format!("{base}/state/group/{group}"))
@@ -303,6 +304,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(state["guests"][0]["name"], "Invitada");
+        assert_eq!(state["width"], 280);
         e.test("1", "speaking");
         let state: serde_json::Value = http
             .get(format!("{base}/state/group/{group}"))
@@ -314,10 +316,9 @@ mod tests {
             .unwrap();
         assert_eq!(state["guests"][0]["state"], "idle");
         e.apply(&doc).unwrap();
-        assert_eq!(
-            next_state(&mut socket).await["guests"][0]["name"],
-            "Cambio sin aplicar"
-        );
+        let applied = next_state(&mut socket).await;
+        assert_eq!(applied["guests"][0]["name"], "Cambio sin aplicar");
+        assert_eq!(applied["width"], 340);
         e.live_action("1", "hide");
         assert_eq!(
             next_state(&mut socket).await["guests"]

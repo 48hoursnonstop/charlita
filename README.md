@@ -22,18 +22,25 @@ una versión estable.
    aparezcan cuando Discord esté conectado. Asigna su personaje habitual o
    uno distinto para el grupo.
 3. Elige fila, columna, cuadrícula o posiciones libres en **Composición**.
+   El lienzo se ajusta al contenido por defecto, incluyendo nombres y espacio
+   para el salto. Puedes desactivar **Ajustar tamaño al contenido** para fijar
+   ancho y alto manualmente.
    Arrastra personajes en el modo libre; también puedes moverlos con flechas,
    usar Shift para pasos de diez píxeles, o escribir las coordenadas.
 4. Pulsa **Aplicar cambios**. La edición se guarda automáticamente como borrador;
    la fuente del stream conserva la última composición aplicada.
 5. Copia la URL del grupo y añádela como **Fuente de navegador** en OBS o Streamlabs.
-   Usa las dimensiones indicadas en la composición. El fondo es transparente.
+   Puedes usar las dimensiones indicadas en la composición. La salida se adapta
+   al área de la fuente de navegador y mantiene el fondo transparente.
 
 Mostrar, ocultar y cambiar expresiones desde los controles en directo actúa
 inmediatamente. Las pruebas de hablar/silencio del editor solo afectan a la
 vista previa. Al perder Discord, los personajes quedan en reposo y se mantienen
 los controles manuales. Cada grupo tiene una URL persistente; la salida
 individual se encuentra en el panel del invitado.
+
+Los proyectos anteriores conservan su tamaño fijo al importarlos. Activa
+**Ajustar tamaño al contenido** en cada grupo para cambiarlo al modo automático.
 
 Para compartir arte, exporta un personaje `.charlita` desde su editor. Un
 proyecto exportado incluye perfiles, composiciones y archivos; no incluye

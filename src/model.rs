@@ -218,6 +218,9 @@ pub struct Group {
     pub id: String,
     pub name: String,
     pub layout: Layout,
+    // Older projects keep their explicitly saved canvas dimensions.
+    #[serde(default)]
+    pub auto_size: bool,
     pub width: u32,
     pub height: u32,
     pub gap: f32,
@@ -237,6 +240,7 @@ impl Group {
             id: id(),
             name: name.into(),
             layout: Layout::Row,
+            auto_size: true,
             width: 1280,
             height: 400,
             gap: 24.0,

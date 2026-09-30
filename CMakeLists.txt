@@ -74,7 +74,12 @@ if(Qt6_VERSION VERSION_GREATER_EQUAL 6.10)
         INCLUDE_PLUGINS qjpeg qwebp qgif qsvg qsvgicon qoffscreen qwayland qwayland-egl qwayland-generic composeplatforminputcontextplugin ibusplatforminputcontextplugin)
 endif()
 if(UNIX AND NOT APPLE)
-    list(APPEND CHARLITA_DEPLOY_OPTIONS PRE_EXCLUDE_REGEXES "^(ld-linux.*|lib(c|m|pthread|dl|rt|util|nss_.*|resolv)[.]so.*)$")
+    # Qt 6.8 emits these patterns as unquoted CMake code: avoid parentheses.
+    list(APPEND CHARLITA_DEPLOY_OPTIONS PRE_EXCLUDE_REGEXES
+        "^ld-linux.*" "^libc[.]so.*" "^libm[.]so.*" "^libpthread[.]so.*"
+        "^libdl[.]so.*" "^librt[.]so.*" "^libutil[.]so.*" "^libnss_.*" "^libresolv[.]so.*"
+        "^libGL.*" "^libOpenGL.*" "^libEGL.*" "^libdrm.*" "^libgbm.*" "^libvulkan.*"
+        POST_EXCLUDE_REGEXES "^$")
     if(Qt6_VERSION VERSION_LESS 6.10)
         # Older deploy helpers select X11 by default. Official SDK plugins have
         # a relative runpath compatible with this standard install layout.

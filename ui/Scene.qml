@@ -152,13 +152,14 @@ Item {
                             }
                         }
                         Text {
-                            text: scene.app.output.width + " × " + scene.app.output.height
+                            text: scene.app.output.width + " × " + scene.app.output.height + (scene.app.group.auto_size ? " · auto" : "")
                             color: Theme.muted
                             font.pixelSize: 12
                             height: 34
                             verticalAlignment: Text.AlignVCenter
                         }
                         ActionButton {
+                            objectName: "editComposition"
                             text: scene.app.t("Composición", "Composition")
                             quiet: true
                             implicitHeight: 34
@@ -233,8 +234,8 @@ Item {
                                             enabled: scene.app.group.layout === "free" && !scene.app.group.members.find(m => m.user === actor.guest.id)?.locked
                                             onActiveChanged: if (!active)
                                                 scene.app.editMember(actor.guest.id, m => {
-                                                    m.x = actor.x;
-                                                    m.y = actor.y;
+                                                    m.x = actor.x + scene.app.output.origin_x;
+                                                    m.y = actor.y + scene.app.output.origin_y;
                                                 })
                                         }
                                     }
@@ -628,13 +629,36 @@ Item {
                         }
                     }
                 }
-                RowLayout {
+                Check {
+                    objectName: "autoCanvas"
                     Layout.fillWidth: true
+                    text: scene.app.t("Ajustar tamaño al contenido", "Fit canvas to content")
+                    checked: scene.app.group.auto_size
+                    onToggled: scene.app.editGroup(g => {
+                        if (!checked) {
+                            g.width = Math.max(64, Math.min(8192, scene.app.output.width));
+                            g.height = Math.max(64, Math.min(8192, scene.app.output.height));
+                        }
+                        g.auto_size = checked;
+                    })
+                }
+                Text {
+                    text: scene.app.t("Tamaño automático: ", "Automatic size: ") + scene.app.output.width + " × " + scene.app.output.height + " px"
+                    color: Theme.muted
+                    visible: scene.app.group.auto_size
+                    Layout.fillWidth: true
+                    wrapMode: Text.Wrap
+                }
+                GridLayout {
+                    columns: 2
+                    Layout.fillWidth: true
+                    visible: !scene.app.group.auto_size
                     Text {
                         text: scene.app.t("Ancho", "Width")
                         color: Theme.muted
                     }
                     SpinBox {
+                        Layout.fillWidth: true
                         from: 64
                         to: 8192
                         value: scene.app.group.width
@@ -647,6 +671,7 @@ Item {
                         color: Theme.muted
                     }
                     SpinBox {
+                        Layout.fillWidth: true
                         from: 64
                         to: 8192
                         value: scene.app.group.height

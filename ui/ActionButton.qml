@@ -28,7 +28,7 @@ Button {
         radius: 10
         color: control.primary ? (control.down ? "#98be77" : control.hovered ? "#c4e8a5" : Theme.accent) : control.down ? "#303b33" : control.hovered ? Theme.elevated : control.quiet ? "transparent" : Theme.surface
         border.width: control.activeFocus ? 2 : control.primary || control.quiet ? 0 : 1
-        border.color: control.activeFocus ? Theme.accent : Theme.line
+        border.color: control.activeFocus ? (control.primary ? Theme.accentInk : Theme.accent) : Theme.line
         opacity: control.enabled ? 1 : 0.55
     }
 }

@@ -8,6 +8,8 @@ use serde::Serialize;
 pub struct Output {
     pub width: u32,
     pub height: u32,
+    pub origin_x: f32,
+    pub origin_y: f32,
     pub labels: bool,
     pub reduced_motion: bool,
     pub connected: bool,
@@ -49,15 +51,27 @@ pub fn group(doc: &Document, runtime: &Runtime, g: &Group, key: &str, preview: b
                     .unwrap_or(false)
         })
         .collect();
-    let positions = layout::positions(g, &visible);
     let characters: std::collections::BTreeMap<_, _> =
         doc.characters.iter().map(|c| (c.id.as_str(), c)).collect();
+    let jumps: Vec<_> = g
+        .members
+        .iter()
+        .map(|m| {
+            m.character
+                .as_ref()
+                .or_else(|| doc.people.get(&m.user).and_then(|p| p.character.as_ref()))
+                .and_then(|id| characters.get(id.as_str()))
+                .map(|character| character.effects.jump)
+                .unwrap_or(10.0)
+        })
+        .collect();
+    let composition = layout::compose(g, &visible, &jumps);
     let guests = g
         .members
         .iter()
         .enumerate()
         .filter_map(|(i, m)| {
-            let pos = positions[i]?;
+            let pos = composition.positions[i]?;
             let person = doc.people.get(&m.user)?;
             let p = if preview {
                 runtime
@@ -153,8 +167,10 @@ pub fn group(doc: &Document, runtime: &Runtime, g: &Group, key: &str, preview: b
         })
         .collect();
     Output {
-        width: g.width,
-        height: g.height,
+        width: composition.width,
+        height: composition.height,
+        origin_x: composition.origin_x,
+        origin_y: composition.origin_y,
         labels: g.labels,
         reduced_motion: doc.settings.reduced_motion,
         connected: runtime.connection == "connected",
@@ -165,6 +181,7 @@ pub fn individual(doc: &Document, r: &Runtime, user: &str, key: &str) -> Option<
     doc.people.get(user)?;
     let g = Group {
         id: user.into(),
+        auto_size: false,
         width: 400,
         height: 440,
         labels: true,

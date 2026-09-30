@@ -36,6 +36,9 @@ parser.add_argument('--qt-sources', type=Path, required=True)
 parser.add_argument('--output', type=Path, default=ROOT / 'dist' / 'packages')
 args = parser.parse_args()
 stage, output = args.stage.resolve(), args.output.resolve()
+core = stage / 'bin' / 'Qt6Core.dll' if os.name == 'nt' else stage / 'lib' / 'libQt6Core.so.6'
+if not core.is_file():
+    raise SystemExit('Qt runtime libraries are missing from the deployed tree: ' + str(core))
 output.mkdir(parents=True, exist_ok=True)
 for name in ('LICENSE', 'THIRD-PARTY-NOTICES.md'):
     shutil.copy2(ROOT / name, stage / name)
@@ -118,7 +121,7 @@ else:
         icons.mkdir(parents=True)
         shutil.copy2(ROOT / 'ui' / 'logo.svg', icons / (APP_ID + '.svg'))
         (deb / 'DEBIAN').mkdir()
-        (deb / 'DEBIAN' / 'control').write_text(f'Package: charlita\nVersion: {VERSION}\nArchitecture: amd64\nMaintainer: Charlita contributors <opensource@users.noreply.github.com>\nSection: video\nPriority: optional\nDepends: libc6 (>= 2.35), libx11-6, libgl1, libegl1, libdbus-1-3, libxkbcommon0\nDescription: Reactive Discord guest overlays for OBS and Streamlabs\n Native Qt editor and local transparent overlays.\n', encoding='utf-8')
+        (deb / 'DEBIAN' / 'control').write_text(f'Package: charlita\nVersion: {VERSION}\nArchitecture: amd64\nMaintainer: Charlita contributors <opensource@users.noreply.github.com>\nSection: video\nPriority: optional\nDepends: libc6 (>= 2.35), libx11-6, libgl1, libopengl0, libegl1, libdbus-1-3, libxkbcommon0\nDescription: Reactive Discord guest overlays for OBS and Streamlabs\n Native Qt editor and local transparent overlays.\n', encoding='utf-8')
         run('dpkg-deb', '--root-owner-group', '--build', deb, output / (prefix + '-linux-x86_64.deb'))
         (stage / 'bin' / 'portable.flag').touch()
         launcher = stage / 'charlita'

@@ -86,7 +86,10 @@ pub fn import(store: &Store, path: &Path) -> Result<Asset> {
         sha256: hash_file(path)?,
     };
     fs::copy(path, store.asset_path(&a))?;
-    prepare_native_preview(store, &a)?;
+    if let Err(error) = prepare_native_preview(store, &a) {
+        let _ = fs::remove_file(store.asset_path(&a));
+        return Err(error);
+    }
     Ok(a)
 }
 fn inspect(path: &Path, ext: &str) -> Result<(u32, u32)> {
@@ -149,6 +152,11 @@ fn inspect(path: &Path, ext: &str) -> Result<(u32, u32)> {
 // Run media tools off the UI thread, with bounded output and a deadline. Files
 // keep pipe buffers from deadlocking while ffmpeg emits its first PNG frame.
 fn tool_output(command: &mut Command) -> Result<Output> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000); // CREATE_NO_WINDOW for background media tools.
+    }
     let mut stdout = tempfile::tempfile()?;
     let mut stderr = tempfile::tempfile()?;
     let mut child = command

@@ -168,13 +168,13 @@ Drawer {
                     ActionButton {
                         text: editor.app.t("Centrar", "Center")
                         onClicked: editor.app.editMember(editor.app.guestId, m => {
-                            m.x = (editor.app.group.width - m.size) / 2;
-                            m.y = (editor.app.group.height - m.size) / 2;
+                            m.x = (editor.app.output.width - m.size) / 2 + editor.app.output.origin_x;
+                            m.y = (editor.app.output.height - m.size) / 2 + editor.app.output.origin_y;
                         })
                     }
                     ActionButton {
                         text: editor.app.t("Alinear abajo", "Align bottom")
-                        onClicked: editor.app.editMember(editor.app.guestId, m => m.y = Math.max(0, editor.app.group.height - m.size - 40))
+                        onClicked: editor.app.editMember(editor.app.guestId, m => m.y = Math.max(0, editor.app.output.height - m.size - 40) + editor.app.output.origin_y)
                     }
                 }
                 Flow {

@@ -189,7 +189,7 @@ Drawer {
                 }
                 GridLayout {
                     Layout.fillWidth: true
-                    columns: 2
+                    columns: editor.width < 420 ? 1 : 2
                     visible: !!editor.pose
                     Repeater {
                         model: [
@@ -224,6 +224,7 @@ Drawer {
                                 font.pixelSize: 12
                             }
                             SpinBox {
+                                objectName: "cropControl" + modelData.index
                                 from: modelData.index < 2 ? 0 : 1
                                 to: modelData.index < 2 ? 99 : 100
                                 value: editor.pose ? Math.round(editor.pose.crop[modelData.index] * 100) : 0
@@ -362,6 +363,8 @@ Drawer {
                     Text {
                         text: editor.app.t("Transición (ms)", "Transition (ms)")
                         color: Theme.muted
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
                     }
                     SpinBox {
                         from: 0
@@ -375,6 +378,8 @@ Drawer {
                     Text {
                         text: editor.app.t("Reposo tras hablar (ms)", "Release delay (ms)")
                         color: Theme.muted
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
                     }
                     SpinBox {
                         from: 0

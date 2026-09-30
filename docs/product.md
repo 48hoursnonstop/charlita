@@ -31,6 +31,12 @@ Native desktop application for Windows and Linux. Free and open source. Intended
 - Update checks from GitHub Releases for `48hoursnonstop/charlita`; automatic checks, explicit installation, no update during broadcast without user action.
 - Reference performance hardware: 8 GB RAM, four-core CPU, integrated GPU. Benchmark growing scenes rather than claiming unlimited scenes have constant cost.
 - Rust engine, native Qt 6 Quick/QML editor, SQLite, Tokio/Axum, browser-native overlay renderer. Internal modules, one local engine, event-driven output and paused hidden animations.
+- New groups fit their canvas to content by default. Row, column and grid retain
+  guest sizes and reserve configured hop and label space. Free layouts include
+  negative coordinates and keep their coordinate origin stable on hide/show.
+  A fixed width/height remains available per group. Legacy projects retain
+  their saved fixed dimensions until auto size is enabled. Canvas changes follow
+  the same draft/Apply boundary as the composition.
 
 ## External validation gates
 

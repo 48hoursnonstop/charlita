@@ -255,6 +255,7 @@ ApplicationWindow {
         }
     }
     Rectangle {
+        id: noticeBanner
         objectName: "noticeBanner"
         parent: Overlay.overlay
         z: 100
@@ -296,6 +297,14 @@ ApplicationWindow {
                     root.toast = "";
                 }
             }
+        }
+    }
+    Shortcut {
+        sequence: "Escape"
+        enabled: noticeBanner.visible && !root.busy
+        onActivated: {
+            backend.dismiss();
+            root.toast = "";
         }
     }
     GuestEditor {
