@@ -39,6 +39,28 @@ presenta ocho PNG cargados, tamaño natural de 1072 × 628, escalado al viewport
 y fondo `rgba(0, 0, 0, 0)`. Eso verifica la salida web, no su integración con
 los clientes OBS y Streamlabs.
 
+## Distribuciones comprobadas
+
+El [run 36707451579 de Actions](https://github.com/48hoursnonstop/charlita/actions/runs/36707451579),
+del 30 de septiembre de 2026, terminó correctamente en Linux y Windows para
+el código `2b7c5837b81fc076fcdaeed304919a882f640ca1`, con Qt 6.8.3.
+Incluye las pruebas del motor, QtTest, lint, empaquetado y arranque desplegado.
+
+- Windows: el paquete desplegado abrió y capturó su ventana con el backend
+  nativo. El instalador NSIS se instaló en una carpeta temporal del runner;
+  la aplicación instalada también abrió y capturó su ventana. La desinstalación
+  eliminó el ejecutable y conservó un archivo de prueba en `bin/data/`.
+- Linux: el portable de ese run se descargó y contrastó con su entrada en
+  `SHA256SUMS`. El ejecutable extraído abrió y capturó su ventana tanto con
+  `offscreen` como con Wayland en esta máquina Arch Linux, sin rutas del SDK en
+  el entorno. El registro del cargador confirmó Qt Core incluido en el paquete
+  y las bibliotecas del escritorio para C++, fuentes y Wayland. La captura
+  procede de la propia ventana de Charlita.
+
+Estas comprobaciones no prueban un gestor de paquetes `.deb`, FUSE/AppImage,
+todos los escritorios ni una instalación interactiva en otra máquina. Los
+paquetes están en los artefactos de Actions; aún no hay una Release estable.
+
 ## Antes de publicar una Release estable
 
 | Comprobación | Resultado requerido | Estado |
@@ -48,10 +70,10 @@ los clientes OBS y Streamlabs.
 | Discord servidor, DM y grupo | Estado de voz, seguimiento, mute y reconexión correctos | No verificado con llamadas reales |
 | OBS Studio Linux y Windows | Browser Source transparente y cambios en directo | Pendiente de cliente OBS |
 | Streamlabs Desktop Windows | Browser Source transparente y WebM | No verificado |
-| Ventana y bandeja Windows | Abrir, cerrar a bandeja, segunda instancia y salir | Pendiente de escritorio Windows |
+| Ventana y bandeja Windows | Abrir, cerrar a bandeja, segunda instancia y salir | Arranque nativo desplegado e instalado probado en CI; bandeja y segunda instancia pendientes de escritorio Windows |
 | Hotkeys X11, Wayland y Windows | Activación global y conflicto comunicado | Pendiente de escritorios reales |
-| GIF, WebP animado y WebM alpha | Animación y transparencia, reposo con movimiento reducido | Pendiente de todos los formatos en ambos sistemas |
-| Instalación limpia y desinstalación | Qt y FFmpeg incluidos, datos conservados | Pendiente de los paquetes compilados |
+| GIF, WebP animado y WebM alpha | Animación y transparencia, reposo con movimiento reducido | Vista previa WebM alpha y movimiento reducido probados con QtTest en ambos sistemas; resto de formatos y clientes de stream pendientes |
+| Instalación limpia y desinstalación | Qt y FFmpeg incluidos, datos conservados | Instalación/desinstalación Windows y arranque portable Linux probados; `.deb`, AppImage y escritorios limpios pendientes |
 | Lectores de pantalla | Nombres, foco, paneles y cambios de estado comprensibles | No verificado |
 | Actualización con Release publicada | Checksum, variante correcta y acción manual | Pendiente de Release |
 | Consumo con escenas de 8, 32 y 128 invitados | Medidas reproducibles, sin prometer RAM constante | Medido en reposo en Linux; [método y límites](performance.md) |
