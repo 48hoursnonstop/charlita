@@ -13,7 +13,7 @@ import tomllib
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = tomllib.loads((ROOT / 'Cargo.toml').read_text())['package']['version']
+VERSION = tomllib.loads((ROOT / 'Cargo.toml').read_text(encoding='utf-8'))['package']['version']
 APP_ID = 'io.github.48hoursnonstop.charlita'
 
 def run(*args, **kwargs):
@@ -48,8 +48,8 @@ shutil.copy2(ROOT / 'ui' / 'fonts' / 'OFL.txt', licenses / 'Inter-OFL.txt')
 run('cargo', 'bundle-licenses', '--format', 'json', '--output', licenses / 'Rust.json', cwd=ROOT)
 # cargo-bundle-licenses scans every target. Keep the dependency graph that is
 # actually linked into this distribution, including build/proc-macro notices.
-host = next(line.removeprefix('host: ') for line in subprocess.check_output(['rustc', '-vV'], text=True).splitlines() if line.startswith('host: '))
-metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--format-version', '1', '--filter-platform', host], cwd=ROOT, text=True))
+host = next(line.removeprefix('host: ') for line in subprocess.check_output(['rustc', '-vV'], text=True, encoding='utf-8').splitlines() if line.startswith('host: '))
+metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--format-version', '1', '--filter-platform', host], cwd=ROOT, text=True, encoding='utf-8'))
 nodes = {node['id']: node for node in metadata['resolve']['nodes']}
 packages = {package['id']: package for package in metadata['packages']}
 pending, reached = [metadata['resolve']['root']], set()
@@ -60,7 +60,7 @@ while pending:
     reached.add(package_id)
     pending.extend(dep['pkg'] for dep in nodes[package_id]['deps'] if any(kind['kind'] != 'dev' for kind in dep['dep_kinds']))
 linked = {(packages[p]['name'], packages[p]['version']) for p in reached}
-bundle = json.loads((licenses / 'Rust.json').read_text())
+bundle = json.loads((licenses / 'Rust.json').read_text(encoding='utf-8'))
 bundle['third_party_libraries'] = [package for package in bundle['third_party_libraries'] if (package['package_name'], package['package_version']) in linked]
 missing = [package['package_name'] for package in bundle['third_party_libraries'] if any(license['text'] == 'NOT FOUND' for license in package['licenses'])]
 if missing:
