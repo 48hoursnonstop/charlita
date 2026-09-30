@@ -9,6 +9,8 @@ places no restriction on modifying these components or debugging those changes.
 - Qt modules, copyright attributions and license texts: `licenses/Qt/`.
 - Qt component inventory: https://doc.qt.io/qt-6.8/licenses-used-in-qt.html
 - Rust dependency copyright and license texts: `licenses/Rust.json`.
+- Inter Variable 4.1, by Rasmus Andersson: `licenses/Inter-OFL.txt`;
+  https://github.com/rsms/inter/tree/v4.1.
 - FFmpeg build provenance and supplied notices: `licenses/FFmpeg/`.
 - FFmpeg source revision and dependency build recipes are recorded in
   `licenses/FFmpeg/FFmpeg-build.txt`; the complete upstream build system is

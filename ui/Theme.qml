@@ -11,5 +11,5 @@ QtObject {
     readonly property color accent: "#b4db91"
     readonly property color accentInk: "#192319"
     readonly property color danger: "#f1a8a5"
-    readonly property string family: Qt.platform.os === "windows" ? "Segoe UI" : "sans-serif"
+    readonly property string family: "Inter Variable"
 }

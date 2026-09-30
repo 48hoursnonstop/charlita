@@ -2,6 +2,7 @@
 """Create native distributions from an already deployed CMake install tree."""
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -40,7 +41,28 @@ for name in ('LICENSE', 'THIRD-PARTY-NOTICES.md'):
     shutil.copy2(ROOT / name, stage / name)
 licenses = stage / 'licenses'
 licenses.mkdir(exist_ok=True)
+shutil.copy2(ROOT / 'ui' / 'fonts' / 'OFL.txt', licenses / 'Inter-OFL.txt')
 run('cargo', 'bundle-licenses', '--format', 'json', '--output', licenses / 'Rust.json', cwd=ROOT)
+# cargo-bundle-licenses scans every target. Keep the dependency graph that is
+# actually linked into this distribution, including build/proc-macro notices.
+host = next(line.removeprefix('host: ') for line in subprocess.check_output(['rustc', '-vV'], text=True).splitlines() if line.startswith('host: '))
+metadata = json.loads(subprocess.check_output(['cargo', 'metadata', '--locked', '--format-version', '1', '--filter-platform', host], cwd=ROOT, text=True))
+nodes = {node['id']: node for node in metadata['resolve']['nodes']}
+packages = {package['id']: package for package in metadata['packages']}
+pending, reached = [metadata['resolve']['root']], set()
+while pending:
+    package_id = pending.pop()
+    if package_id in reached:
+        continue
+    reached.add(package_id)
+    pending.extend(dep['pkg'] for dep in nodes[package_id]['deps'] if any(kind['kind'] != 'dev' for kind in dep['dep_kinds']))
+linked = {(packages[p]['name'], packages[p]['version']) for p in reached}
+bundle = json.loads((licenses / 'Rust.json').read_text())
+bundle['third_party_libraries'] = [package for package in bundle['third_party_libraries'] if (package['package_name'], package['package_version']) in linked]
+missing = [package['package_name'] for package in bundle['third_party_libraries'] if any(license['text'] == 'NOT FOUND' for license in package['licenses'])]
+if missing:
+    raise SystemExit('Missing license notices for linked dependencies: ' + ', '.join(missing))
+(licenses / 'Rust.json').write_text(json.dumps(bundle, indent=2), encoding='utf-8')
 qt_licenses = licenses / 'Qt'
 count = 0
 for source in args.qt_sources.rglob('*'):

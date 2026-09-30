@@ -3,6 +3,7 @@
 #include <QClipboard>
 #include <QDesktopServices>
 #include <QFileDialog>
+#include <QFontDatabase>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSystemTrayIcon>
@@ -21,6 +22,9 @@ static QString takeString(char *pointer) {
     return text;
 }
 Bridge::Bridge(const QVariantMap &options, QObject *parent) : QObject(parent), m_hasTray(QSystemTrayIcon::isSystemTrayAvailable()) {
+    const auto fontId = QFontDatabase::addApplicationFont(QStringLiteral(":/qt/qml/" CHARLITA_QML_URI "/ui/fonts/InterVariable.ttf"));
+    const auto families = QFontDatabase::applicationFontFamilies(fontId);
+    if (!families.isEmpty()) { QFont font(families.first()); font.setPixelSize(14); QGuiApplication::setFont(font); }
     const auto json = QJsonDocument(QJsonObject::fromVariantMap(options)).toJson(QJsonDocument::Compact);
     m_handle = charlita_create(json.constData());
     if (!m_handle) { m_error = takeString(charlita_last_error()); return; }
