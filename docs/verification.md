@@ -25,7 +25,9 @@ Este registro separa resultados ejecutados de comprobaciones pendientes.
 - Actions repite esas comprobaciones en Linux y Windows, despliega Qt y ejecuta
   `packaging/check-startup.py` para abrir y capturar su propia ventana. El script
   elimina las rutas del SDK de Qt del entorno para verificar las bibliotecas
-  incluidas. El empaquetador rechaza una distribución sin Qt Core.
+  incluidas. El empaquetador rechaza una distribución sin Qt Core o el módulo
+  Qt Quick Controls. En Windows, el arranque desplegado utiliza el backend
+  nativo `windows`; las pruebas QtTest utilizan `offscreen` del SDK.
 
 Las capturas de QtTest se obtienen del propio `QQuickWindow`, usando
 `CHARLITA_UI_CAPTURE_DIR`; no capturan el escritorio del usuario. El ejecutable

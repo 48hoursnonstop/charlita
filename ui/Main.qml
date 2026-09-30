@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
+import QtQuick.Controls as Controls
 import QtQuick.Layouts
 
 ApplicationWindow {
@@ -262,7 +263,7 @@ ApplicationWindow {
     Rectangle {
         id: noticeBanner
         objectName: "noticeBanner"
-        parent: Overlay.overlay
+        parent: Controls.Overlay.overlay
         z: 100
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter

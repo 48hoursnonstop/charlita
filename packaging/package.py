@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Create native distributions from an already deployed CMake install tree."""
 import argparse
+import configparser
 import hashlib
 import json
 import os
@@ -39,6 +40,12 @@ stage, output = args.stage.resolve(), args.output.resolve()
 core = stage / 'bin' / 'Qt6Core.dll' if os.name == 'nt' else stage / 'lib' / 'libQt6Core.so.6'
 if not core.is_file():
     raise SystemExit('Qt runtime libraries are missing from the deployed tree: ' + str(core))
+qt_conf = configparser.ConfigParser(interpolation=None)
+qt_conf.read(stage / 'bin' / 'qt.conf', encoding='utf-8')
+qt_prefix = stage / 'bin' / qt_conf.get('Paths', 'Prefix', fallback='..')
+qml_root = qt_prefix / qt_conf.get('Paths', 'QmlImports', fallback='qml')
+if not (qml_root / 'QtQuick' / 'Controls' / 'qmldir').is_file():
+    raise SystemExit('The Qt Quick Controls module is missing from the deployed tree')
 output.mkdir(parents=True, exist_ok=True)
 for name in ('LICENSE', 'THIRD-PARTY-NOTICES.md'):
     shutil.copy2(ROOT / name, stage / name)
