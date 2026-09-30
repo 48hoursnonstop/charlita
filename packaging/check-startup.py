@@ -9,6 +9,7 @@ import tempfile
 stage = Path(sys.argv[1]).resolve()
 executable = stage / 'bin' / ('charlita.exe' if os.name == 'nt' else 'charlita')
 screenshot = stage.parent / 'deployed.png'
+screenshot.unlink(missing_ok=True)
 env = {**os.environ, 'QT_QPA_PLATFORM': 'offscreen', 'QT_QUICK_BACKEND': 'software'}
 for name in ('LD_LIBRARY_PATH', 'QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH',
              'QML_IMPORT_PATH', 'QML2_IMPORT_PATH'):

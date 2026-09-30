@@ -37,5 +37,13 @@ sistemas y genera un único `SHA256SUMS` con todos ellos. Charlita comprueba
 exclusivamente Releases estables publicadas; ignora borradores y prereleases.
 
 Desinstalar conserva los datos del usuario. Para actualizar un portable,
-extrae en otra carpeta y copia `data/` con Charlita cerrada; nunca sobrescribas
+extrae en otra carpeta y copia `bin/data/` con Charlita cerrada; en el AppImage,
+`data/` está junto al archivo AppImage. Nunca sobrescribas
 el ejecutable que mantiene una fuente de stream abierta.
+
+La comprobación de arranque elimina del entorno las rutas del SDK de Qt para
+evitar que una biblioteca ausente pase inadvertida. En el runner de Windows,
+`check-windows-installer.py` también instala el `.exe` en una carpeta temporal,
+abre y captura la ventana instalada y verifica que desinstalar elimina el
+ejecutable y conserva `bin/data/`. Esa prueba no sustituye una revisión de la
+bandeja, el compositor ni los diálogos en un escritorio Windows real.

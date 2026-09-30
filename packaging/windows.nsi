@@ -31,7 +31,12 @@ Section "Charlita" SEC_APP
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Charlita" "DisplayIcon" "$INSTDIR\bin\charlita.exe"
 SectionEnd
 Section "Uninstall"
-    RMDir /r "$INSTDIR\bin"
+    ; A --portable session can keep user data in bin\data. Preserve that folder.
+    Delete "$INSTDIR\bin\*.exe"
+    Delete "$INSTDIR\bin\*.dll"
+    Delete "$INSTDIR\bin\qt.conf"
+    Delete "$INSTDIR\bin\portable.flag"
+    RMDir "$INSTDIR\bin"
     RMDir /r "$INSTDIR\lib"
     RMDir /r "$INSTDIR\qml"
     RMDir /r "$INSTDIR\plugins"

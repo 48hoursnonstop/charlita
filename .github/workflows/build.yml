@@ -77,6 +77,9 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           QT_QUICK_BACKEND: software
         run: python packaging/check-startup.py dist/stage
+      - name: Verify Windows installation and uninstall
+        if: runner.os == 'Windows'
+        run: python packaging/check-windows-installer.py dist/packages
       - uses: actions/upload-artifact@v4
         if: always()
         with:
