@@ -79,6 +79,8 @@ if(UNIX AND NOT APPLE)
         "^ld-linux.*" "^libc[.]so.*" "^libm[.]so.*" "^libpthread[.]so.*"
         "^libdl[.]so.*" "^librt[.]so.*" "^libutil[.]so.*" "^libnss_.*" "^libresolv[.]so.*"
         "^libGL.*" "^libOpenGL.*" "^libEGL.*" "^libdrm.*" "^libgbm.*" "^libvulkan.*"
+        "^libstdc[+][+].*" "^libgcc_s.*" "^libwayland.*"
+        "^libfontconfig.*" "^libfreetype.*" "^libharfbuzz.*"
         POST_EXCLUDE_REGEXES "^$")
     if(Qt6_VERSION VERSION_LESS 6.10)
         # Older deploy helpers select X11 by default. Official SDK plugins have
@@ -92,3 +94,6 @@ if(UNIX AND NOT APPLE)
 endif()
 qt_generate_deploy_qml_app_script(TARGET charlita OUTPUT_SCRIPT deploy_script ${CHARLITA_DEPLOY_OPTIONS})
 install(SCRIPT ${deploy_script})
+if(UNIX AND NOT APPLE)
+    install(SCRIPT packaging/fix-linux-runtime.cmake)
+endif()

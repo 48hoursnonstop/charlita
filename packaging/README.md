@@ -20,6 +20,9 @@ python packaging/package.py --stage dist/stage --qt-sources /ruta/Qt/6.8.3/Src
 Windows utiliza `windows` en el primer comando y requiere NSIS en el PATH o en
 su ubicación estándar. Qt sources debe corresponder a la versión de las
 bibliotecas desplegadas; el paquete copia sus avisos de atribución y licencias.
+En Linux, instala también `patchelf` antes de desplegar: el paso de instalación
+ajusta las bibliotecas incluidas para que sus dependencias se encuentren en
+la misma carpeta, incluso cuando difieren de las bibliotecas del escritorio.
 
 Resultados:
 
