@@ -1,0 +1,9 @@
+/target/
+/dist/
+/data/
+/tools/*
+!/tools/README.md
+*.log
+*.sqlite*
+*.charlita
+/.env
