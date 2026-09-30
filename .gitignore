@@ -7,3 +7,8 @@
 *.sqlite*
 *.charlita
 /.env
+/build/
+/build-release/
+/.qmlls.ini
+__pycache__/
+*.pyc

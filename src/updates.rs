@@ -86,11 +86,12 @@ pub async fn check(e: Engine) -> Result<()> {
     e.notify();
     Ok(())
 }
-fn selected_asset(r: &Release) -> Option<&ReleaseAsset> {
-    let suffix = if cfg!(windows) {
-        "windows-x86_64-setup.exe"
-    } else {
-        "linux-x86_64.AppImage"
+fn selected_asset(r: &Release, portable: bool) -> Option<&ReleaseAsset> {
+    let suffix = match (cfg!(windows), portable) {
+        (true, false) => "windows-x86_64-setup.exe",
+        (true, true) => "windows-x86_64-portable.zip",
+        (false, false) => "linux-x86_64.AppImage",
+        (false, true) => "linux-x86_64-portable.tar.gz",
     };
     r.assets.iter().find(|a| a.name.ends_with(suffix))
 }
@@ -102,7 +103,8 @@ pub async fn install(e: Engine) -> Result<()> {
         .release
         .clone()
         .context("Check updates first")?;
-    let asset = selected_asset(&release)
+    let portable = e.store.metadata_value("portable_distribution")?.as_deref() == Some("true");
+    let asset = selected_asset(&release, portable)
         .context("No compatible installer in this release")?
         .clone();
     let checksums = release

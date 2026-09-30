@@ -66,12 +66,11 @@ fn credentials(e: &Engine) -> Option<Token> {
 }
 fn save_token(e: &Engine, token: Token) {
     let app = e.live.read().unwrap().settings.discord_app.clone();
-    if let Ok(k) = entry(&app) {
-        if k.set_password(&serde_json::to_string(&token).unwrap())
+    if let Ok(k) = entry(&app)
+        && k.set_password(&serde_json::to_string(&token).unwrap())
             .is_err()
-        {
-            tracing::warn!("Credentials remain in memory: the OS credential store is unavailable");
-        }
+    {
+        tracing::warn!("Credentials remain in memory: the OS credential store is unavailable");
     }
     e.auth.lock().unwrap().token = Some(token);
 }
@@ -288,13 +287,34 @@ pub async fn read_frame<R: AsyncRead + Unpin>(s: &mut R) -> Result<(u32, Value)>
     s.read_exact(&mut bytes).await?;
     Ok((opcode, serde_json::from_slice(&bytes)?))
 }
-async fn command<W: AsyncWrite + Unpin>(s: &mut W, cmd: &str, args: Value) -> Result<()> {
-    write_frame(
-        s,
-        1,
-        &json!({"cmd":cmd,"args":args,"nonce":crate::model::id()}),
-    )
-    .await
+async fn command<W: AsyncWrite + Unpin>(s: &mut W, cmd: &str, args: Value) -> Result<String> {
+    let nonce = crate::model::id();
+    write_frame(s, 1, &json!({"cmd":cmd,"args":args,"nonce":nonce})).await?;
+    Ok(nonce)
+}
+async fn response<S: AsyncRead + AsyncWrite + Unpin>(
+    s: &mut S,
+    cmd: &str,
+    nonce: &str,
+) -> Result<Value> {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let (opcode, value) = read_frame(s).await?;
+            if opcode == 3 {
+                write_frame(s, 4, &value).await?;
+                continue;
+            }
+            ensure!(opcode != 2, "Discord closed RPC during authentication");
+            if opcode == 1 && value["nonce"] == nonce && value["cmd"] == cmd {
+                ensure!(
+                    value["evt"] != "ERROR",
+                    "Discord rejected authentication. Check RPC permissions"
+                );
+                return Ok(value);
+            }
+        }
+    })
+    .await?
 }
 async fn subscribe<W: AsyncWrite + Unpin>(
     s: &mut W,
@@ -341,14 +361,13 @@ async fn session(e: &Engine, token: &str) -> Result<()> {
     let app = e.live.read().unwrap().settings.discord_app.clone();
     let mut s = connect().await?;
     write_frame(&mut s, 0, &json!({"v":1,"client_id":app})).await?;
-    let (_, v) = tokio::time::timeout(Duration::from_secs(10), read_frame(&mut s)).await??;
-    ensure!(v["evt"] == "READY", "Discord rejected handshake");
-    command(&mut s, "AUTHENTICATE", json!({"access_token":token})).await?;
-    let (_, v) = tokio::time::timeout(Duration::from_secs(10), read_frame(&mut s)).await??;
+    let (opcode, v) = tokio::time::timeout(Duration::from_secs(10), read_frame(&mut s)).await??;
     ensure!(
-        v["evt"] != "ERROR",
-        "Discord rejected authentication. Check RPC permissions"
+        opcode == 1 && v["evt"] == "READY",
+        "Discord rejected handshake"
     );
+    let nonce = command(&mut s, "AUTHENTICATE", json!({"access_token":token})).await?;
+    response(&mut s, "AUTHENTICATE", &nonce).await?;
     subscribe(&mut s, "SUBSCRIBE", "VOICE_CHANNEL_SELECT", json!({})).await?;
     command(&mut s, "GET_SELECTED_VOICE_CHANNEL", json!({})).await?;
     let (mut read, mut write) = tokio::io::split(s);
@@ -362,29 +381,66 @@ async fn session(e: &Engine, token: &str) -> Result<()> {
             }
         }
     }));
-    let result=async{let mut heartbeat=tokio::time::interval(Duration::from_secs(20));let mut subscribed:Option<String>=None;
-        loop{tokio::select!{
-            frame=rx.recv()=>{let(opcode,v)=frame.context("Discord closed the connection")??;if opcode==3{write_frame(&mut write,4,&v).await?;continue}if opcode==2{bail!("Discord closed RPC")}if v["evt"]=="ERROR"{bail!("Discord RPC request failed ({}). Check RPC voice access",v["data"]["code"])}
-                if v["cmd"]=="GET_SELECTED_VOICE_CHANNEL"||v["evt"]=="VOICE_CHANNEL_SELECT"{
-                    let selected=v["data"]["id"].as_str().or_else(||v["data"]["channel_id"].as_str()).map(str::to_owned);
-                    let pinned=e.live.read().unwrap().settings.pinned_channel.clone();let channel=pinned.or(selected);
-                    if subscribed!=channel{
-                        for event in ["SPEAKING_START","SPEAKING_STOP","VOICE_STATE_CREATE","VOICE_STATE_UPDATE","VOICE_STATE_DELETE"]{
-                            if let Some(old)=&subscribed{subscribe(&mut write,"UNSUBSCRIBE",event,json!({"channel_id":old})).await?;}
-                            if let Some(new)=&channel{subscribe(&mut write,"SUBSCRIBE",event,json!({"channel_id":new})).await?;}
-                        }
-                        subscribed=channel.clone();{let mut r=e.runtime.write().unwrap();r.channel=channel.clone();r.channel_name.clear();for p in r.users.values_mut(){p.present=false;p.speaking=false;}}
-                        if let Some(c)=&channel{command(&mut write,"GET_CHANNEL",json!({"channel_id":c})).await?;}
+    let result = async {
+        let mut heartbeat = tokio::time::interval(Duration::from_secs(20));
+        let mut subscribed: Option<String> = None;
+        loop {
+            tokio::select! {
+                frame = rx.recv() => {
+                    let (opcode, value) = frame.context("Discord closed the connection")??;
+                    if opcode == 3 {
+                        write_frame(&mut write, 4, &value).await?;
+                        continue;
                     }
-                    if v["data"]["voice_states"].is_array(){populate(e,&v["data"]);}
-                    e.connection("connected");e.notify();
+                    if opcode == 2 { bail!("Discord closed RPC"); }
+                    if value["evt"] == "ERROR" {
+                        bail!("Discord RPC request failed ({}). Check RPC voice access", value["data"]["code"]);
+                    }
+                    if value["cmd"] == "GET_SELECTED_VOICE_CHANNEL" || value["evt"] == "VOICE_CHANNEL_SELECT" {
+                        let selected = value["data"]["id"].as_str()
+                            .or_else(|| value["data"]["channel_id"].as_str()).map(str::to_owned);
+                        let pinned = e.live.read().unwrap().settings.pinned_channel.clone();
+                        let channel = pinned.or(selected);
+                        if subscribed != channel {
+                            for event in ["SPEAKING_START", "SPEAKING_STOP", "VOICE_STATE_CREATE", "VOICE_STATE_UPDATE", "VOICE_STATE_DELETE"] {
+                                if let Some(old) = &subscribed {
+                                    subscribe(&mut write, "UNSUBSCRIBE", event, json!({"channel_id":old})).await?;
+                                }
+                                if let Some(new) = &channel {
+                                    subscribe(&mut write, "SUBSCRIBE", event, json!({"channel_id":new})).await?;
+                                }
+                            }
+                            subscribed = channel.clone();
+                            {
+                                let mut runtime = e.runtime.write().unwrap();
+                                runtime.channel = channel.clone();
+                                runtime.channel_name.clear();
+                                for presence in runtime.users.values_mut() {
+                                    presence.present = false;
+                                    presence.speaking = false;
+                                }
+                            }
+                            if let Some(channel) = &channel {
+                                command(&mut write, "GET_CHANNEL", json!({"channel_id":channel})).await?;
+                            }
+                        }
+                        if value["data"]["voice_states"].is_array() { populate(e, &value["data"]); }
+                        e.connection("connected");
+                        e.notify();
+                    }
+                    if value["cmd"] == "GET_CHANNEL" {
+                        populate(e, &value["data"]);
+                        e.notify();
+                    }
+                    if let Some(event) = value["evt"].as_str() { handle_event(e, event, &value["data"]); }
                 }
-                if v["cmd"]=="GET_CHANNEL"{populate(e,&v["data"]);e.notify();}
-                if let Some(event)=v["evt"].as_str(){handle_event(e,event,&v["data"]);}
-            },
-            _=heartbeat.tick()=>{write_frame(&mut write,3,&json!({"nonce":crate::model::id()})).await?;}
-        }}
-        #[allow(unreachable_code)] Ok::<(),anyhow::Error>(())
+                _ = heartbeat.tick() => {
+                    write_frame(&mut write, 3, &json!({"nonce":crate::model::id()})).await?;
+                }
+            }
+        }
+        #[allow(unreachable_code)]
+        Ok::<(), anyhow::Error>(())
     }.await;
     drop(reader);
     result
@@ -398,6 +454,9 @@ impl Drop for ReaderTask {
 fn person(v: &Value) -> Option<Person> {
     let user = &v["user"];
     let id = user["id"].as_str()?.to_owned();
+    if id.is_empty() || id.len() > 32 || !id.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
     let name = v["nick"]
         .as_str()
         .filter(|s| !s.is_empty())
@@ -449,10 +508,10 @@ pub fn handle_event(e: &Engine, event: &str, data: &Value) {
     let mut r = e.runtime.write().unwrap();
     match event {
         "SPEAKING_START" | "SPEAKING_STOP" => {
-            if let Some(id) = data["user_id"].as_str() {
-                if let Some(p) = r.users.get_mut(id) {
-                    p.speaking = event == "SPEAKING_START";
-                }
+            if let Some(id) = data["user_id"].as_str()
+                && let Some(p) = r.users.get_mut(id)
+            {
+                p.speaking = event == "SPEAKING_START";
             }
         }
         "VOICE_STATE_CREATE" | "VOICE_STATE_UPDATE" => {
@@ -469,11 +528,10 @@ pub fn handle_event(e: &Engine, event: &str, data: &Value) {
             if let Some(id) = data["user"]["id"]
                 .as_str()
                 .or_else(|| data["user_id"].as_str())
+                && let Some(p) = r.users.get_mut(id)
             {
-                if let Some(p) = r.users.get_mut(id) {
-                    p.present = false;
-                    p.speaking = false;
-                }
+                p.present = false;
+                p.speaking = false;
             }
         }
         _ => return,
@@ -485,6 +543,36 @@ pub fn handle_event(e: &Engine, event: &str, data: &Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn authentication_waits_for_its_reply_and_answers_ping() {
+        let (mut client, mut server) = tokio::io::duplex(4096);
+        let peer = tokio::spawn(async move {
+            write_frame(&mut server, 3, &json!({"ping":true}))
+                .await
+                .unwrap();
+            assert_eq!(
+                read_frame(&mut server).await.unwrap(),
+                (4, json!({"ping":true}))
+            );
+            write_frame(
+                &mut server,
+                1,
+                &json!({"cmd":"AUTHENTICATE","nonce":"another-request"}),
+            )
+            .await
+            .unwrap();
+            write_frame(
+                &mut server,
+                1,
+                &json!({"cmd":"AUTHENTICATE","nonce":"ours","data":{"user":{"id":"123"}}}),
+            )
+            .await
+            .unwrap();
+        });
+        let reply = response(&mut client, "AUTHENTICATE", "ours").await.unwrap();
+        assert_eq!(reply["data"]["user"]["id"], "123");
+        peer.await.unwrap();
+    }
     #[tokio::test]
     async fn framing_roundtrips_and_rejects_oversized_frames() {
         let (mut a, mut b) = tokio::io::duplex(4096);

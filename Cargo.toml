@@ -7,12 +7,18 @@ description = "Native reactive Discord guest overlays for OBS and Streamlabs"
 license = "MIT"
 repository = "https://github.com/48hoursnonstop/charlita"
 
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[[bin]]
+name = "charlita-engine"
+path = "src/main.rs"
+
 [dependencies]
 anyhow = "1"
 axum = { version = "0.8", features = ["ws", "query"] }
 base64 = "0.22"
 directories = "6"
-eframe = { version = "0.36", default-features = false, features = ["default_fonts", "glow", "persistence", "x11", "wayland", "accesskit"] }
 fs2 = "0.4"
 futures-util = "0.3"
 global-hotkey = "0.8"
@@ -20,7 +26,6 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 open = "5"
 rand = "0.9"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "stream", "form"] }
-rfd = "0.17"
 rusqlite = { version = "0.40", features = ["bundled"] }
 semver = "1"
 serde = { version = "1", features = ["derive"] }
@@ -38,11 +43,9 @@ zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd = { version = "0.13", default-features = false, features = ["tokio", "global_shortcuts"] }
-ksni = "0.3"
 keyring = { version = "3.6", features = ["sync-secret-service", "crypto-rust"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-tray-icon = { version = "0.26", default-features = false }
 keyring = { version = "3.6", features = ["windows-native"] }
 
 [profile.release]
@@ -52,14 +55,3 @@ strip = true
 
 [dev-dependencies]
 tokio-tungstenite = "0.29"
-
-[package.metadata.packager]
-product-name = "Charlita"
-identifier = "io.github.48hoursnonstop.charlita"
-category = "Utility"
-icons = ["packaging/icon.png"]
-resources = ["tools/*"]
-before-packaging-command = "cargo build --release --locked"
-
-[package.metadata.packager.deb]
-depends = ["libx11-6", "libxkbcommon0", "libgl1"]

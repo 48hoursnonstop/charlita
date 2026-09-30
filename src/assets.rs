@@ -9,7 +9,8 @@ use std::{
     fs::{self, File},
     io::{Read, Write},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Output, Stdio},
+    time::{Duration, Instant},
 };
 
 pub fn media_tool(name: &str) -> PathBuf {
@@ -59,33 +60,11 @@ pub fn import(store: &Store, path: &Path) -> Result<Asset> {
         ),
         "Import PNG, JPEG, WebP, GIF or WebM / Importa PNG, JPEG, WebP, GIF o WebM"
     );
-    let (width, height) = if ext == "webm" {
-        let mut magic = [0; 4];
-        File::open(path)?.read_exact(&mut magic)?;
-        ensure!(magic == [0x1a, 0x45, 0xdf, 0xa3], "Invalid WebM header");
-        let output=Command::new(media_tool("ffprobe")).args(["-v","error","-select_streams","v:0","-show_entries","stream=width,height","-of","json"]).arg(path).output().context("Install or bundle FFmpeg (ffprobe) to import WebM / Instala FFmpeg para importar WebM")?;
-        ensure!(
-            output.status.success(),
-            "Cannot read WebM; export a VP8/VP9 WebM file"
-        );
-        let v: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-        (
-            v["streams"][0]["width"]
-                .as_u64()
-                .context("WebM has no video")? as u32,
-            v["streams"][0]["height"]
-                .as_u64()
-                .context("WebM has no video")? as u32,
-        )
-    } else {
-        ImageReader::open(path)?
-            .with_guessed_format()?
-            .into_dimensions()?
-    };
     ensure!(
-        width > 0 && height > 0 && width <= 16384 && height <= 16384,
-        "Artwork dimensions must be 1–16384 px / Las dimensiones deben ser de 1–16384 px"
+        fs::metadata(path)?.len() <= 1024 * 1024 * 1024,
+        "Artwork larger than 1 GiB"
     );
+    let (width, height) = inspect(path, &ext)?;
     let mime = match ext.as_str() {
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
@@ -109,9 +88,110 @@ pub fn import(store: &Store, path: &Path) -> Result<Asset> {
     fs::copy(path, store.asset_path(&a))?;
     Ok(a)
 }
+fn inspect(path: &Path, ext: &str) -> Result<(u32, u32)> {
+    let (width, height) = if ext == "webm" {
+        webm_decoder(path)?;
+        let mut magic = [0; 4];
+        File::open(path)?.read_exact(&mut magic)?;
+        ensure!(magic == [0x1a, 0x45, 0xdf, 0xa3], "Invalid WebM header");
+        let output = tool_output(
+            Command::new(media_tool("ffprobe"))
+                .args([
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=width,height",
+                    "-of",
+                    "json",
+                ])
+                .arg(path),
+        )
+        .context(
+            "Install or bundle FFmpeg (ffprobe) to import WebM / Instala FFmpeg para importar WebM",
+        )?;
+        ensure!(
+            output.status.success(),
+            "Cannot read WebM; export a VP8/VP9 WebM file"
+        );
+        let v: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+        (
+            v["streams"][0]["width"]
+                .as_u64()
+                .context("WebM has no video")? as u32,
+            v["streams"][0]["height"]
+                .as_u64()
+                .context("WebM has no video")? as u32,
+        )
+    } else {
+        let reader = ImageReader::open(path)?.with_guessed_format()?;
+        let expected = match ext {
+            "png" => image::ImageFormat::Png,
+            "jpg" | "jpeg" => image::ImageFormat::Jpeg,
+            "gif" => image::ImageFormat::Gif,
+            "webp" => image::ImageFormat::WebP,
+            _ => anyhow::bail!("Unsupported artwork format"),
+        };
+        ensure!(
+            reader.format() == Some(expected),
+            "The file extension does not match the artwork format / La extensión no corresponde al formato del archivo"
+        );
+        reader.into_dimensions()?
+    };
+    ensure!(
+        width > 0 && height > 0 && width <= 16384 && height <= 16384,
+        "Artwork dimensions must be 1–16384 px / Las dimensiones deben ser de 1–16384 px"
+    );
+    Ok((width, height))
+}
+// Run media tools off the UI thread, with bounded output and a deadline. Files
+// keep pipe buffers from deadlocking while ffmpeg emits its first PNG frame.
+fn tool_output(command: &mut Command) -> Result<Output> {
+    let mut stdout = tempfile::tempfile()?;
+    let mut stderr = tempfile::tempfile()?;
+    let mut child = command
+        .stdin(Stdio::null())
+        .stdout(stdout.try_clone()?)
+        .stderr(stderr.try_clone()?)
+        .spawn()?;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let status = loop {
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+        if Instant::now() >= deadline
+            || stdout.metadata()?.len() > 16 * 1024 * 1024
+            || stderr.metadata()?.len() > 1024 * 1024
+        {
+            let _ = child.kill();
+            let _ = child.wait();
+            anyhow::bail!(
+                "Artwork could not be read within 30 seconds. Re-export it and import again / Vuelve a exportar el archivo e impórtalo de nuevo"
+            );
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    };
+    use std::io::{Seek, SeekFrom};
+    stdout.seek(SeekFrom::Start(0))?;
+    stderr.seek(SeekFrom::Start(0))?;
+    let mut out = Vec::new();
+    let mut err = Vec::new();
+    stdout.take(16 * 1024 * 1024).read_to_end(&mut out)?;
+    stderr.take(1024 * 1024).read_to_end(&mut err)?;
+    Ok(Output {
+        status,
+        stdout: out,
+        stderr: err,
+    })
+}
 pub fn export_package(store: &Store, doc: &Document, path: &Path) -> Result<()> {
     doc.validate()?;
-    let temp = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(Path::new(".")))?;
+    let temp = tempfile::NamedTempFile::new_in(
+        path.parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new(".")),
+    )?;
     let mut zip = zip::ZipWriter::new(temp.reopen()?);
     let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated);
@@ -152,6 +232,10 @@ pub fn import_package(
         let dest = stage.path().join(&filename);
         std::io::copy(&mut entry, &mut File::create(&dest)?)?;
         ensure!(
+            inspect(&dest, &a.extension)? == (a.width, a.height),
+            "Artwork dimensions do not match the character package"
+        );
+        ensure!(
             hash_file(&dest)? == a.sha256,
             "Asset checksum mismatch / El archivo del personaje está dañado"
         );
@@ -173,21 +257,22 @@ pub fn thumbnail(store: &Store, a: &Asset) -> Result<image::RgbaImage> {
     let p = store.asset_path(a);
     if a.extension == "webm" {
         let decoder = webm_decoder(&p)?;
-        let output = Command::new(media_tool("ffmpeg"))
-            .args(["-v", "error", "-nostdin", "-c:v", decoder, "-i"])
-            .arg(&p)
-            .args([
-                "-frames:v",
-                "1",
-                "-vf",
-                "scale='min(512,iw)':'min(512,ih)':force_original_aspect_ratio=decrease",
-                "-f",
-                "image2pipe",
-                "-vcodec",
-                "png",
-                "-",
-            ])
-            .output()?;
+        let output = tool_output(
+            Command::new(media_tool("ffmpeg"))
+                .args(["-v", "error", "-nostdin", "-c:v", decoder, "-i"])
+                .arg(&p)
+                .args([
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    "scale='min(512,iw)':'min(512,ih)':force_original_aspect_ratio=decrease",
+                    "-f",
+                    "image2pipe",
+                    "-vcodec",
+                    "png",
+                    "-",
+                ]),
+        )?;
         ensure!(
             output.status.success(),
             "Cannot preview WebM. Verify FFmpeg is installed"
@@ -198,23 +283,26 @@ pub fn thumbnail(store: &Store, a: &Asset) -> Result<image::RgbaImage> {
     let mut limits = image::Limits::default();
     limits.max_alloc = Some(512 * 1024 * 1024);
     reader.limits(limits);
-    let image=reader.decode()?;
-    Ok(image.thumbnail(image.width().min(512), image.height().min(512)).into_rgba8())
+    let image = reader.decode()?;
+    Ok(image
+        .thumbnail(image.width().min(512), image.height().min(512))
+        .into_rgba8())
 }
 pub fn webm_decoder(path: &Path) -> Result<&'static str> {
-    let output = Command::new(media_tool("ffprobe"))
-        .args([
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=codec_name",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-        ])
-        .arg(path)
-        .output()?;
+    let output = tool_output(
+        Command::new(media_tool("ffprobe"))
+            .args([
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_name",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+            ])
+            .arg(path),
+    )?;
     ensure!(output.status.success(), "Cannot inspect WebM codec");
     match String::from_utf8_lossy(&output.stdout).trim() {
         "vp8" => Ok("libvpx"),
@@ -225,6 +313,23 @@ pub fn webm_decoder(path: &Path) -> Result<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn imported_media_and_package_dimensions_must_match_the_manifest() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path().join("app")).unwrap();
+        let artwork = dir.path().join("fixture.png");
+        image::RgbaImage::new(4, 4).save(&artwork).unwrap();
+        let misleading = dir.path().join("fixture.gif");
+        fs::copy(&artwork, &misleading).unwrap();
+        assert!(import(&store, &misleading).is_err());
+        let mut asset = import(&store, &artwork).unwrap();
+        asset.width = 5;
+        let mut document = Document::default();
+        document.assets.insert(asset.id.clone(), asset);
+        let package = dir.path().join("wrong-dimensions.charlita");
+        export_package(&store, &document, &package).unwrap();
+        assert!(import_package(&store, &package, document.settings).is_err());
+    }
     #[test]
     fn package_roundtrip_and_corruption_are_checked() {
         let dir = tempfile::tempdir().unwrap();
@@ -241,7 +346,7 @@ mod tests {
         let result = import_package(&s, &p, d.settings.clone()).unwrap();
         assert_eq!(result.assets, d.assets);
         let mut broken = d.clone();
-        broken.assets.get_mut(&a.id).unwrap().sha256 = "incorrect".into();
+        broken.assets.get_mut(&a.id).unwrap().sha256 = "0".repeat(64);
         let bad = dir.path().join("bad.charlita");
         export_package(&s, &broken, &bad).unwrap();
         assert!(import_package(&s, &bad, d.settings).is_err());

@@ -280,8 +280,8 @@ mod tests {
             tokio::time::timeout(Duration::from_secs(2), async {
                 loop {
                     let frame = socket.next().await.unwrap().unwrap();
-                        if frame.is_text() {
-                            return serde_json::from_str(frame.to_text().unwrap()).unwrap();
+                    if frame.is_text() {
+                        return serde_json::from_str(frame.to_text().unwrap()).unwrap();
                     }
                 }
             })

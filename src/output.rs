@@ -50,6 +50,8 @@ pub fn group(doc: &Document, runtime: &Runtime, g: &Group, key: &str, preview: b
         })
         .collect();
     let positions = layout::positions(g, &visible);
+    let characters: std::collections::BTreeMap<_, _> =
+        doc.characters.iter().map(|c| (c.id.as_str(), c)).collect();
     let guests = g
         .members
         .iter()
@@ -76,7 +78,11 @@ pub fn group(doc: &Document, runtime: &Runtime, g: &Group, key: &str, preview: b
             } else {
                 "idle"
             };
-            let c = doc.character_for(m);
+            let c = m
+                .character
+                .as_ref()
+                .or(person.character.as_ref())
+                .and_then(|id| characters.get(id.as_str()).copied());
             let effects = c.map(|c| c.effects.clone()).unwrap_or_default();
             let pose = c
                 .and_then(|c| {

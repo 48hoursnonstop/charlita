@@ -50,8 +50,16 @@ impl Document {
                 "Unsupported asset format"
             );
             ensure!(
-                asset.width > 0 && asset.height > 0,
+                (1..=16384).contains(&asset.width) && (1..=16384).contains(&asset.height),
                 "Invalid image dimensions"
+            );
+            ensure!(
+                asset.mime == asset.expected_mime(),
+                "Asset media type mismatch"
+            );
+            ensure!(
+                asset.sha256.len() == 64 && asset.sha256.chars().all(|c| c.is_ascii_hexdigit()),
+                "Invalid asset checksum"
             );
             ensure!(
                 self.assets.get(&asset.id) == Some(asset),
@@ -68,6 +76,14 @@ impl Document {
             ensure!(
                 c.effects.jump.is_finite() && (0.0..=200.0).contains(&c.effects.jump),
                 "Invalid jump"
+            );
+            ensure!(
+                c.effects.dim_idle.is_finite() && (0.1..=1.0).contains(&c.effects.dim_idle),
+                "Invalid idle brightness"
+            );
+            ensure!(
+                c.effects.duration_ms <= 5000 && c.effects.release_ms <= 5000,
+                "Effect timing must be at most five seconds"
             );
             for pose in c.states.values().chain(c.expressions.values()) {
                 ensure!(
@@ -98,13 +114,28 @@ impl Document {
             }
         }
         let characters: BTreeSet<_> = self.characters.iter().map(|c| c.id.as_str()).collect();
-        for person in self.people.values() {
+        for (key, person) in &self.people {
+            ensure!(
+                key == &person.id
+                    && !key.is_empty()
+                    && key.len() <= 32
+                    && key.chars().all(|c| c.is_ascii_digit()),
+                "Invalid Discord user ID"
+            );
+            if let Some(avatar) = &person.avatar {
+                let url = reqwest::Url::parse(avatar)?;
+                ensure!(
+                    url.scheme() == "https" && url.host_str() == Some("cdn.discordapp.com"),
+                    "Use a Discord CDN avatar or imported artwork"
+                );
+            }
             if let Some(c) = &person.character {
                 ensure!(characters.contains(c.as_str()), "Missing character");
             }
         }
         for p in &self.profiles {
             Uuid::parse_str(&p.id)?;
+            ensure!(ids.insert(p.id.clone()), "Duplicate profile");
             ensure!(!p.groups.is_empty(), "Keep at least one group");
             for g in &p.groups {
                 Uuid::parse_str(&g.id)?;
@@ -117,6 +148,7 @@ impl Document {
                     g.gap.is_finite() && (0.0..=500.0).contains(&g.gap),
                     "Invalid gap"
                 );
+                ensure!(g.columns > 0, "Grid needs at least one column");
                 let mut members = BTreeSet::new();
                 for m in &g.members {
                     ensure!(
@@ -332,6 +364,16 @@ pub struct Asset {
     pub sha256: String,
 }
 impl Asset {
+    pub fn expected_mime(&self) -> &'static str {
+        match self.extension.as_str() {
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "webp" => "image/webp",
+            "webm" => "video/webm",
+            _ => "application/octet-stream",
+        }
+    }
     pub fn filename(&self) -> String {
         format!("{}.{}", self.id, self.extension)
     }

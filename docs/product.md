@@ -25,12 +25,12 @@ Native desktop application for Windows and Linux. Free and open source. Intended
 
 ## Delivery and UX
 
-- Sober dark interface; center canvas, guest navigation, selected-item properties. Spanish and English, system-language default, manual selection.
+- Sober dark Qt Quick/QML interface; center canvas, guest navigation, separate editing drawers. Avoid OBS-style docks and appearance. Spanish and English, system-language default, manual selection.
 - Autosave, profiles, import/export including assets, recovery after restart, actionable errors, diagnostics export.
 - Installers and portable distributions for both operating systems. Discord credentials remain machine-local and are never exported.
 - Update checks from GitHub Releases for `48hoursnonstop/charlita`; automatic checks, explicit installation, no update during broadcast without user action.
 - Reference performance hardware: 8 GB RAM, four-core CPU, integrated GPU. Benchmark growing scenes rather than claiming unlimited scenes have constant cost.
-- Rust, egui/eframe, SQLite, Tokio/Axum, browser-native overlay renderer. Internal modules, one local engine, event-driven output and paused hidden animations.
+- Rust engine, native Qt 6 Quick/QML editor, SQLite, Tokio/Axum, browser-native overlay renderer. Internal modules, one local engine, event-driven output and paused hidden animations.
 
 ## External validation gates
 

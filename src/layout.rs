@@ -97,7 +97,7 @@ mod tests {
                 ..Default::default()
             })
             .collect();
-        let p = positions(&g, &vec![true; 200]);
+        let p = positions(&g, &[true; 200]);
         assert_eq!(p.iter().flatten().count(), 200);
         assert!(
             p.iter()

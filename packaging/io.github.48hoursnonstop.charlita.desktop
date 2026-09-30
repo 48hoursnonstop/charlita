@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Charlita
+Comment=Reactive Discord guest overlays
+Comment[es]=Personajes de invitados de Discord para tu stream
+Exec=charlita
+Icon=io.github.48hoursnonstop.charlita
+Terminal=false
+Categories=AudioVideo;Utility;
+StartupWMClass=io.github.48hoursnonstop.charlita

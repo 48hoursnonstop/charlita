@@ -58,15 +58,34 @@ impl Store {
         Ok(())
     }
     pub fn apply(&self, d: &Document) -> Result<()> {
-        d.validate()?;
-        let body = serde_json::to_string(d)?;
+        self.save_pair(d, d)
+    }
+    pub fn save_pair(&self, draft: &Document, live: &Document) -> Result<()> {
+        draft.validate()?;
+        live.validate()?;
         let mut db = self.db.lock().unwrap();
         let tx = db.transaction()?;
-        for name in ["draft", "live"] {
+        for (name, document) in [("draft", draft), ("live", live)] {
+            let body = serde_json::to_string(document)?;
             tx.execute("INSERT INTO documents(name,body) VALUES(?1,?2) ON CONFLICT(name) DO UPDATE SET body=excluded.body",params![name,body])?;
         }
         tx.commit()?;
         Ok(())
+    }
+    pub fn metadata(&self, name: &str, value: &str) -> Result<()> {
+        self.db.lock().unwrap().execute("INSERT INTO metadata(name,value) VALUES(?1,?2) ON CONFLICT(name) DO UPDATE SET value=excluded.value",params![name,value])?;
+        Ok(())
+    }
+    pub fn metadata_value(&self, name: &str) -> Result<Option<String>> {
+        use rusqlite::OptionalExtension;
+        Ok(self
+            .db
+            .lock()
+            .unwrap()
+            .query_row("SELECT value FROM metadata WHERE name=?1", [name], |row| {
+                row.get(0)
+            })
+            .optional()?)
     }
     pub fn asset_path(&self, a: &crate::model::Asset) -> PathBuf {
         self.root.join("assets").join(a.filename())
@@ -90,9 +109,11 @@ impl Store {
 }
 pub fn data_root(portable: bool, explicit: Option<&Path>) -> Result<PathBuf> {
     if let Some(p) = explicit {
-        return Ok(p.to_owned());
+        return Ok(std::path::absolute(p)?);
     }
-    let executable = std::env::current_exe()?;
+    let executable = std::env::var_os("APPIMAGE")
+        .map(PathBuf::from)
+        .unwrap_or(std::env::current_exe()?);
     if portable || executable.with_file_name("portable.flag").exists() {
         return Ok(executable.parent().unwrap().join("data"));
     }
@@ -102,6 +123,12 @@ pub fn data_root(portable: bool, explicit: Option<&Path>) -> Result<PathBuf> {
             .data_local_dir()
             .to_owned(),
     )
+}
+pub fn portable_distribution(portable: bool) -> Result<bool> {
+    let executable = std::env::var_os("APPIMAGE")
+        .map(PathBuf::from)
+        .unwrap_or(std::env::current_exe()?);
+    Ok(portable || executable.with_file_name("portable.flag").exists())
 }
 
 #[cfg(test)]

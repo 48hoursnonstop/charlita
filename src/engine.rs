@@ -6,19 +6,21 @@ use anyhow::Result;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{broadcast, mpsc};
 
+type WakeCallback = Box<dyn Fn() + Send + Sync>;
 #[derive(Clone)]
 pub struct Engine {
     pub store: Arc<Store>,
     pub live: Arc<RwLock<Document>>,
     pub runtime: Arc<RwLock<Runtime>>,
     pub events: broadcast::Sender<()>,
-    pub ui: Arc<RwLock<Option<eframe::egui::Context>>>,
+    pub wake: Arc<RwLock<Option<WakeCallback>>>,
     pub commands: mpsc::UnboundedSender<Command>,
     pub key: String,
     pub port: u16,
     pub auth: Arc<std::sync::Mutex<crate::discord::AuthState>>,
     pub updates: Arc<RwLock<crate::updates::UpdateState>>,
     pub notice: Arc<std::sync::Mutex<Option<String>>>,
+    pub native_commands: Arc<std::sync::Mutex<Vec<Command>>>,
 }
 #[derive(Clone, Debug)]
 pub enum Command {
@@ -47,21 +49,25 @@ impl Engine {
                     ..Default::default()
                 })),
                 events,
-                ui: Default::default(),
+                wake: Default::default(),
                 commands,
                 key,
                 port,
                 auth: Default::default(),
                 updates: Default::default(),
                 notice: Default::default(),
+                native_commands: Default::default(),
             },
             rx,
         ))
     }
     pub fn notify(&self) {
         let _ = self.events.send(());
-        if let Some(ctx) = self.ui.read().unwrap().as_ref() {
-            ctx.request_repaint();
+        self.repaint();
+    }
+    pub fn repaint(&self) {
+        if let Some(wake) = self.wake.read().unwrap().as_ref() {
+            wake();
         }
     }
     pub fn report(&self, message: impl Into<String>) {
@@ -117,8 +123,8 @@ impl Engine {
             );
         }
         drop(r);
-        if let Some(ctx) = self.ui.read().unwrap().as_ref() {
-            ctx.request_repaint();
+        if let Some(wake) = self.wake.read().unwrap().as_ref() {
+            wake();
         }
     }
 }
