@@ -6,23 +6,36 @@ Este registro separa resultados ejecutados de comprobaciones pendientes.
 
 ## Comprobaciones automatizadas
 
-- `cargo test --locked --all-targets`: geometría sin límite de participantes,
-  reflujo y espacios conservados, draft/Apply atómico, bloqueo de instancia,
+- `cargo test --locked --all-targets`: 14 pruebas del motor. Geometría sin límite
+  de participantes, lienzo automático, coordenadas libres negativas, migración
+  de proyectos con tamaño fijo, reflujo y espacios conservados, draft/Apply atómico, bloqueo de instancia,
   persistencia de URL, paquetes con checksums, frames RPC y desconexión.
 - La prueba de servidor usa solicitudes HTTP y WebSocket reales: el borrador
   no se publica, las simulaciones no salen al stream, Apply envía el cambio,
   show/hide es inmediato, hay rangos HTTP para WebM y fotogramas estáticos.
 - `ctest --test-dir build --output-on-failure`: la aplicación QML de producción,
   con su motor real, editada mediante eventos de teclado y ratón. Verifica
-  biblioteca/importación, paneles, Apply y ventana estrecha.
+  seis casos de comportamiento: biblioteca/importación, paneles, Apply, ventana
+  de 320 px, aviso de error sobre un panel, transparencia del WebM en la vista
+  previa nativa, movimiento reducido y cambio entre lienzo automático y fijo.
+- `QT_SCALE_FACTOR=2 ctest --test-dir build --output-on-failure`: los mismos
+  casos con escala de pantalla del 200% en Linux.
 - `cmake --build build --target charlita_qmllint`: comprobación de tipos QML.
 - `cargo clippy --locked --all-targets -- -D warnings` y `cargo fmt --all --check`.
-- Actions repite esas comprobaciones en Linux y Windows, despliega Qt y prueba
-  el arranque del binario desplegado en Linux.
+- Actions repite esas comprobaciones en Linux y Windows, despliega Qt y ejecuta
+  `packaging/check-startup.py` para abrir y capturar su propia ventana. El script
+  elimina las rutas del SDK de Qt del entorno para verificar las bibliotecas
+  incluidas. El empaquetador rechaza una distribución sin Qt Core.
 
 Las capturas de QtTest se obtienen del propio `QQuickWindow`, usando
 `CHARLITA_UI_CAPTURE_DIR`; no capturan el escritorio del usuario. El ejecutable
 admite `--screenshot ARCHIVO` para revisar una composición local de prueba.
+La revisión del flujo de importación y publicación está en
+[interface-review.md](interface-review.md). Estas pruebas usan datos aislados.
+En el navegador de prueba, la salida de ocho invitados con lienzo automático
+presenta ocho PNG cargados, tamaño natural de 1072 × 628, escalado al viewport
+y fondo `rgba(0, 0, 0, 0)`. Eso verifica la salida web, no su integración con
+los clientes OBS y Streamlabs.
 
 ## Antes de publicar una Release estable
 
@@ -39,7 +52,7 @@ admite `--screenshot ARCHIVO` para revisar una composición local de prueba.
 | Instalación limpia y desinstalación | Qt y FFmpeg incluidos, datos conservados | Pendiente de los paquetes compilados |
 | Lectores de pantalla | Nombres, foco, paneles y cambios de estado comprensibles | No verificado |
 | Actualización con Release publicada | Checksum, variante correcta y acción manual | Pendiente de Release |
-| Consumo con escenas de 8, 32 y 128 invitados | Medidas reproducibles, sin prometer RAM constante | Pendiente de benchmark optimizado |
+| Consumo con escenas de 8, 32 y 128 invitados | Medidas reproducibles, sin prometer RAM constante | Medido en reposo en Linux; [método y límites](performance.md) |
 
 La autorización documentada por Discord para Social SDK no constituye por sí
 sola una confirmación del flujo RPC de Charlita. Ninguna simulación ni prueba

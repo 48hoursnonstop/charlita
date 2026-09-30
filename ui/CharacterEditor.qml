@@ -36,6 +36,12 @@ Drawer {
     height: app.height
     modal: true
     dim: true
+    closePolicy: Popup.CloseOnPressOutside | (app.dismissibleNotice ? Popup.NoAutoClose : Popup.CloseOnEscape)
+    Shortcut {
+        sequence: "Escape"
+        enabled: editor.visible && editor.app.dismissibleNotice
+        onActivated: editor.app.dismissNotice()
+    }
     background: Rectangle {
         color: Theme.surface
         border.color: Theme.line

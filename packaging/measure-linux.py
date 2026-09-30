@@ -13,6 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--binary', type=Path, default=Path('build-release/charlita'))
 parser.add_argument('--seconds', type=int, default=30)
 parser.add_argument('--platform', choices=['offscreen', 'wayland', 'xcb'], default='offscreen')
+parser.add_argument('--canvas', choices=['automatic', 'fixed'], default='automatic')
 parser.add_argument('--output', type=Path, default=Path('dist/measurements.json'))
 args = parser.parse_args()
 if not Path('/proc/self/stat').is_file() or args.seconds < 5:
@@ -35,7 +36,10 @@ results = []
 with tempfile.TemporaryDirectory(prefix='charlita-measure-') as directory:
     for count in (8, 32, 128):
         data = Path(directory) / str(count)
-        subprocess.run(['target/debug/examples/scene', str(data), str(count)], check=True,
+        fixture = ['target/debug/examples/scene', str(data), str(count)]
+        if args.canvas == 'automatic':
+            fixture.append('--auto')
+        subprocess.run(fixture, check=True,
                        stdout=subprocess.DEVNULL)
         env = {**os.environ, 'QT_QPA_PLATFORM': args.platform, 'QT_SCALE_FACTOR': '1'}
         if args.platform == 'offscreen':
@@ -71,7 +75,7 @@ with tempfile.TemporaryDirectory(prefix='charlita-measure-') as directory:
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
-report = {'platform': args.platform, 'binary': str(binary),
+report = {'platform': args.platform, 'canvas': args.canvas, 'binary': str(binary),
           'scenario': 'Idle editor, grid, distinct 128x128 PNGs, Discord and update checks off; no browser or OBS included',
           'results': results}
 args.output.parent.mkdir(parents=True, exist_ok=True)

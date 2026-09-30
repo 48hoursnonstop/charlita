@@ -156,7 +156,7 @@ Item {
         anchors.top: parent.bottom
         anchors.topMargin: 8
         anchors.horizontalCenter: parent.horizontalCenter
-        width: Math.max(100, parent.width + 40)
+        width: parent.width
         horizontalAlignment: Text.AlignHCenter
         text: avatar.label
         visible: avatar.names

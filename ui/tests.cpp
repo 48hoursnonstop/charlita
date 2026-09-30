@@ -128,9 +128,11 @@ private slots:
         scene->setProperty("expanded",true);capture("expanded");
     }
     void smallWindowKeepsPrimaryActionAndKeyboardFocusReachable() {
+        QVERIFY(backend->request("add_guest",{{"group",groupId},{"user","123456789012345678"},{"name","Guest"}})["ok"].toBool());
         window->resize(320,640);QTest::qWait(100);
         auto *apply=item("applyChanges");QVERIFY(apply);
-        apply->forceActiveFocus(Qt::TabFocusReason);capture("apply-focus");
+        QVERIFY(apply->isEnabled());apply->forceActiveFocus(Qt::TabFocusReason);
+        QTRY_VERIFY(apply->hasActiveFocus());capture("apply-focus");
         const auto rect=apply->mapRectToScene(QRectF(0,0,apply->width(),apply->height()));
         QVERIFY2(rect.left()>=0&&rect.right()<=window->width(),qPrintable(QString("Apply control outside window: %1,%2").arg(rect.left()).arg(rect.right())));
         auto *status=item("applyStatus");QVERIFY(status);

@@ -58,6 +58,11 @@ ApplicationWindow {
             height: 720
         })
     readonly property bool busy: backend.state.busy || false
+    readonly property bool dismissibleNotice: noticeBanner.visible && !busy
+    function dismissNotice() {
+        backend.dismiss();
+        toast = "";
+    }
     function t(spanish, english) {
         return es ? spanish : english;
     }
@@ -292,20 +297,14 @@ ApplicationWindow {
                 implicitWidth: 28
                 implicitHeight: 28
                 visible: !root.busy
-                onClicked: {
-                    backend.dismiss();
-                    root.toast = "";
-                }
+                onClicked: root.dismissNotice()
             }
         }
     }
     Shortcut {
         sequence: "Escape"
-        enabled: noticeBanner.visible && !root.busy
-        onActivated: {
-            backend.dismiss();
-            root.toast = "";
-        }
+        enabled: root.dismissibleNotice && !guestEditor.visible && !characterEditor.visible
+        onActivated: root.dismissNotice()
     }
     GuestEditor {
         id: guestEditor

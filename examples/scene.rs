@@ -7,7 +7,10 @@ use charlita::{
 };
 fn main() -> anyhow::Result<()> {
     let args: Vec<_> = std::env::args().collect();
-    anyhow::ensure!(args.len() == 3, "Usage: scene DATA_DIR GUEST_COUNT");
+    anyhow::ensure!(
+        args.len() == 3 || args.len() == 4 && args[3] == "--auto",
+        "Usage: scene DATA_DIR GUEST_COUNT [--auto]"
+    );
     let count: usize = args[2].parse()?;
     let store = Store::open(args[1].clone().into())?;
     let mut doc = store.load("live")?.unwrap();
@@ -16,7 +19,7 @@ fn main() -> anyhow::Result<()> {
     doc.settings.language = "es".into();
     doc.profiles[0].name = "Escena de prueba".into();
     doc.profiles[0].groups[0].height = 720;
-    doc.profiles[0].groups[0].auto_size = false;
+    doc.profiles[0].groups[0].auto_size = args.len() == 4;
     doc.profiles[0].groups[0].layout = charlita::model::Layout::Grid;
     doc.profiles[0].groups[0].columns = 4;
     for i in 0..count {
