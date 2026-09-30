@@ -45,11 +45,12 @@ Item {
         }
     }
     FocusScroll {
+        id: sceneScroll
         anchors.fill: parent
         clip: true
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
         ColumnLayout {
-            width: scene.width
+            width: sceneScroll.availableWidth
             height: Math.max(implicitHeight, scene.height)
             spacing: 18
             GridLayout {
@@ -100,16 +101,19 @@ Item {
                     }
                 }
                 ColumnLayout {
+                    Layout.fillWidth: true
                     Layout.alignment: Qt.AlignRight
                     spacing: 4
                     ActionButton {
                         objectName: "applyChanges"
+                        Layout.alignment: Qt.AlignRight
                         text: scene.app.t("Aplicar cambios", "Apply changes")
                         primary: true
                         enabled: !scene.app.busy
                         onClicked: scene.backend.request("apply")
                     }
                     Text {
+                        objectName: "applyStatus"
                         text: scene.backend.state.dirty ? scene.app.t("Borrador guardado", "Draft saved") : scene.app.t("Todo aplicado", "All applied")
                         color: Theme.muted
                         font.pixelSize: 12
@@ -332,6 +336,9 @@ Item {
             }
             FocusScroll {
                 id: guestScroll
+                rightPadding: 0
+                contentWidth: guestRow.width
+                contentHeight: guestRow.height
                 visible: !scene.expanded
                 Layout.fillWidth: true
                 Layout.preferredHeight: 92
@@ -339,6 +346,7 @@ Item {
                 ScrollBar.horizontal.policy: ScrollBar.AsNeeded
                 ScrollBar.vertical.policy: ScrollBar.AlwaysOff
                 Row {
+                    id: guestRow
                     spacing: 10
                     Repeater {
                         model: scene.app.group.members

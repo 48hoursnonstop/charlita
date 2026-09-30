@@ -5,7 +5,16 @@ import QtQuick.Controls.Basic
 ScrollView {
     id: view
     clip: true
+    rightPadding: 10
+    contentWidth: availableWidth
+    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
     ScrollBar.vertical: ScrollBar {
+        parent: view
+        x: view.width - width
+        y: view.topPadding
+        height: view.availableHeight
+        orientation: Qt.Vertical
+        size: Math.min(1, view.availableHeight / Math.max(1, view.contentHeight))
         policy: ScrollBar.AsNeeded
         active: true
     }

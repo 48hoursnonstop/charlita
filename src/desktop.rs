@@ -76,6 +76,13 @@ impl Shared {
             })
             .collect();
         let update = self.engine.updates.read().unwrap();
+        let previews: std::collections::BTreeMap<_, _> = editor
+            .draft
+            .assets
+            .values()
+            .filter(|a| a.extension == "webm")
+            .map(|a| (&a.id, assets::preview_path(&self.engine.store, a).is_file()))
+            .collect();
         let commands: Vec<_> = self
             .engine
             .native_commands
@@ -85,7 +92,7 @@ impl Shared {
             .map(|c| format!("{c:?}"))
             .collect();
         json!({"document":editor.draft,"dirty":editor.draft!=*live,"runtime":*runtime,"outputs":outputs,
-            "busy":editor.busy,"message":editor.message,"undo":!editor.undo.is_empty(),"redo":!editor.redo.is_empty(),
+            "busy":editor.busy,"message":editor.message,"previews":previews,"undo":!editor.undo.is_empty(),"redo":!editor.redo.is_empty(),
             "error":self.engine.notice.lock().unwrap().clone(),"assetRoot":self.engine.store.root.join("assets"),
             "root":self.engine.store.root,"baseUrl":format!("http://127.0.0.1:{}/o/{}",self.engine.port,self.engine.key),
             "redirect":format!("http://127.0.0.1:{}/auth/callback",self.engine.port),"commands":commands,
@@ -141,17 +148,43 @@ impl Desktop {
             .try_init();
         let native = Native::new(engine.clone());
         let draft = engine.store.load("draft")?.unwrap();
-        Ok(Self {
-            shared: Arc::new(Shared {
-                engine,
-                editor: Mutex::new(Editor {
-                    draft,
-                    undo: vec![],
-                    redo: vec![],
-                    busy: false,
-                    message: String::new(),
-                }),
+        let shared = Arc::new(Shared {
+            engine,
+            editor: Mutex::new(Editor {
+                draft,
+                undo: vec![],
+                redo: vec![],
+                busy: false,
+                message: String::new(),
             }),
+        });
+        let missing: Vec<_> = shared
+            .editor
+            .lock()
+            .unwrap()
+            .draft
+            .assets
+            .values()
+            .filter(|a| {
+                a.extension == "webm" && !assets::preview_path(&shared.engine.store, a).is_file()
+            })
+            .cloned()
+            .collect();
+        if !missing.is_empty() {
+            shared.editor.lock().unwrap().busy = true;
+            let task = shared.clone();
+            runtime.spawn_blocking(move || {
+                let result = (|| {
+                    for asset in missing {
+                        assets::prepare_native_preview(&task.engine.store, &asset)?;
+                    }
+                    Ok(String::new())
+                })();
+                task.finish(result);
+            });
+        }
+        Ok(Self {
+            shared,
             native,
             runtime: Some(runtime),
             _logs: logs,

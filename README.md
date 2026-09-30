@@ -55,8 +55,10 @@ antes de aparecer en una fuente.
 
 Necesitas Rust **1.95 o posterior**, CMake 3.24+, Ninja, un compilador C++20 y
 Qt **6.8 o posterior** con Core, Gui, Qml, Quick, QuickControls2, Widgets,
-Multimedia, Svg y Test. Linux también necesita los paquetes de desarrollo
-X11 y D-Bus. FFmpeg/ffprobe se usan para importar y previsualizar WebM.
+Svg y Test. Linux también necesita los paquetes de desarrollo
+X11, Wayland y D-Bus. FFmpeg/ffprobe se usan para importar WebM.
+La vista previa nativa usa una copia animada de hasta 512 px y 30 fps;
+OBS y Streamlabs reciben el archivo original con su transparencia.
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release

@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Effects
-import QtMultimedia
 
 Item {
     id: avatar
@@ -116,7 +115,7 @@ Item {
                 height: avatar.media ? avatar.media.height * avatar.fit : 0
                 x: -((avatar.spriteFrame % (avatar.sprite ? avatar.sprite.columns : 1)) * avatar.imageWidth + avatar.crop[0] * avatar.imageWidth) * avatar.fit
                 y: -(Math.floor(avatar.spriteFrame / (avatar.sprite ? avatar.sprite.columns : 1)) * avatar.imageHeight + avatar.crop[1] * avatar.imageHeight) * avatar.fit
-                sourceComponent: avatar.media && avatar.media.kind === "webm" ? videoComponent : avatar.media && ["gif", "webp"].indexOf(avatar.media.kind) >= 0 && !avatar.sprite ? animationComponent : imageComponent
+                sourceComponent: avatar.media && ["gif", "webp", "webm"].indexOf(avatar.media.kind) >= 0 && !avatar.sprite ? animationComponent : imageComponent
             }
             Rectangle {
                 anchors.fill: parent
@@ -187,6 +186,7 @@ Item {
     Component {
         id: animationComponent
         AnimatedImage {
+            objectName: "avatarAnimation"
             source: avatar.app.source(avatar.pose, avatar.media)
             playing: avatar.playing
             asynchronous: true
@@ -196,39 +196,6 @@ Item {
             onPlayingChanged: {
                 if (!playing)
                     currentFrame = 0;
-            }
-        }
-    }
-    Component {
-        id: videoComponent
-        Item {
-            VideoOutput {
-                id: video
-                anchors.fill: parent
-                fillMode: VideoOutput.Stretch
-            }
-            MediaPlayer {
-                id: player
-                source: avatar.app.source(avatar.pose, avatar.media)
-                videoOutput: video
-                loops: MediaPlayer.Infinite
-                Component.onCompleted: {
-                    if (avatar.playing)
-                        play();
-                    else {
-                        play();
-                        pause();
-                    }
-                }
-            }
-            Connections {
-                target: avatar
-                function onPlayingChanged() {
-                    if (avatar.playing)
-                        player.play();
-                    else
-                        player.pause();
-                }
             }
         }
     }

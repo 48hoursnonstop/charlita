@@ -86,6 +86,7 @@ pub fn import(store: &Store, path: &Path) -> Result<Asset> {
         sha256: hash_file(path)?,
     };
     fs::copy(path, store.asset_path(&a))?;
+    prepare_native_preview(store, &a)?;
     Ok(a)
 }
 fn inspect(path: &Path, ext: &str) -> Result<(u32, u32)> {
@@ -185,6 +186,57 @@ fn tool_output(command: &mut Command) -> Result<Output> {
         stderr: err,
     })
 }
+pub fn preview_path(store: &Store, asset: &Asset) -> PathBuf {
+    store
+        .root
+        .join("assets")
+        .join(format!("{}.preview.webp", asset.id))
+}
+pub fn prepare_native_preview(store: &Store, asset: &Asset) -> Result<()> {
+    if asset.extension != "webm" || preview_path(store, asset).is_file() {
+        return Ok(());
+    }
+    let temporary = tempfile::NamedTempFile::new_in(store.root.join("assets"))?;
+    native_preview(&store.asset_path(asset), temporary.path())?;
+    temporary.persist(preview_path(store, asset))?;
+    Ok(())
+}
+// Qt's stock VP8/VP9 decoder drops WebM alpha. A bounded animated WebP is
+// generated once for the native editor. Full-canvas frames avoid cropped-frame
+// compositing artifacts in Qt. Stream output retains the original.
+fn native_preview(source: &Path, destination: &Path) -> Result<()> {
+    let decoder = webm_decoder(source)?;
+    let result = tool_output(
+        Command::new(media_tool("ffmpeg"))
+            .args([
+                "-v", "error", "-nostdin", "-y", "-threads", "2", "-c:v", decoder, "-i",
+            ])
+            .arg(source)
+            .args([
+                "-an",
+                "-filter_threads",
+                "1",
+                "-vf",
+                "fps=30,scale='min(512,iw)':'min(512,ih)':force_original_aspect_ratio=decrease",
+                "-c:v",
+                "libwebp",
+                "-lossless",
+                "0",
+                "-q:v",
+                "85",
+                "-loop",
+                "0",
+                "-f",
+                "webp",
+            ])
+            .arg(destination),
+    )?;
+    ensure!(
+        result.status.success(),
+        "Cannot prepare WebM preview. Re-export it as VP8/VP9 with alpha / Vuelve a exportar el WebM como VP8/VP9 con transparencia"
+    );
+    Ok(())
+}
 pub fn export_package(store: &Store, doc: &Document, path: &Path) -> Result<()> {
     doc.validate()?;
     let temp = tempfile::NamedTempFile::new_in(
@@ -240,6 +292,12 @@ pub fn import_package(
             "Asset checksum mismatch / El archivo del personaje está dañado"
         );
     }
+    for a in doc.assets.values().filter(|a| a.extension == "webm") {
+        native_preview(
+            &stage.path().join(a.filename()),
+            &stage.path().join(format!("{}.preview.webp", a.id)),
+        )?;
+    }
     for a in doc.assets.values() {
         let dst = store.asset_path(a);
         if dst.exists() {
@@ -249,6 +307,12 @@ pub fn import_package(
             );
         } else {
             fs::rename(stage.path().join(a.filename()), dst)?;
+        }
+        if a.extension == "webm" && !preview_path(store, a).exists() {
+            fs::rename(
+                stage.path().join(format!("{}.preview.webp", a.id)),
+                preview_path(store, a),
+            )?;
         }
     }
     Ok(doc)

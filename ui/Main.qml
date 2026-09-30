@@ -108,6 +108,9 @@ ApplicationWindow {
     function source(pose, media) {
         if (pose && document.assets[pose.asset]) {
             const asset = document.assets[pose.asset];
+            if (asset.extension === "webm") {
+                return backend.state.previews[asset.id] ? backend.localFile(backend.state.assetRoot + "/" + asset.id + ".preview.webp") : "";
+            }
             return backend.localFile(backend.state.assetRoot + "/" + asset.id + "." + asset.extension);
         }
         return media ? media.url : "";
@@ -252,6 +255,9 @@ ApplicationWindow {
         }
     }
     Rectangle {
+        objectName: "noticeBanner"
+        parent: Overlay.overlay
+        z: 100
         anchors.bottom: parent.bottom
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottomMargin: 56

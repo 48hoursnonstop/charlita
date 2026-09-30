@@ -38,15 +38,20 @@ jobs:
         with:
           version: '6.8.3'
           arch: ${{ matrix.arch }}
-          modules: qtmultimedia qtimageformats qtshadertools
+          modules: qtimageformats qtshadertools
           source: true
-          src-archives: qtbase qtdeclarative qtmultimedia qtimageformats qtsvg qtshadertools qtwayland
+          src-archives: qtbase qtdeclarative qtimageformats qtsvg qtshadertools qtwayland
           cache: true
       - name: Verify Rust
         run: |
           cargo fmt --all --check
           cargo test --locked --all-targets
           cargo clippy --locked --all-targets -- -D warnings
+      - name: Fetch verified media tools
+        run: python packaging/fetch-tools.py ${{ matrix.platform }}
+      - name: Add media tools to test path
+        shell: bash
+        run: echo "$GITHUB_WORKSPACE/tools" >> "$GITHUB_PATH"
       - name: Compile native Qt application
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -57,10 +62,7 @@ jobs:
         run: |
           cmake --build build --target charlita_qmllint
           ctest --test-dir build --output-on-failure
-      - name: Fetch verified media tools
-        run: python packaging/fetch-tools.py ${{ matrix.platform }}
       - name: Install packaging utilities
-        shell: bash
         run: cargo install cargo-bundle-licenses --version 4.2.0 --locked
       - name: Install Windows installer builder
         if: runner.os == 'Windows'
@@ -71,11 +73,10 @@ jobs:
           cmake --install build --prefix "$GITHUB_WORKSPACE/dist/stage"
           python packaging/package.py --stage dist/stage --qt-sources "$QT_ROOT_DIR/../Src"
       - name: Verify deployed startup
-        if: runner.os == 'Linux'
         env:
           QT_QPA_PLATFORM: offscreen
           QT_QUICK_BACKEND: software
-        run: dist/stage/bin/charlita --data-dir /tmp/charlita-deployed-check --port 39468 --screenshot dist/deployed.png
+        run: python packaging/check-startup.py dist/stage
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -85,4 +86,5 @@ jobs:
             dist/ui-checks/*
             dist/deployed.png
             build/Testing/Temporary/LastTest.log
+            build/Testing/native-ui.txt
           if-no-files-found: warn
